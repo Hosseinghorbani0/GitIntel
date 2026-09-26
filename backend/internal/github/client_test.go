@@ -20,4 +20,14 @@ func TestNormalizePublicRepositoryExcludesPrivateMetadata(t *testing.T) {
 	}
 }
 
+func TestRepositoryListOptionsExcludeMemberRepositories(t *testing.T) {
+	options := repositoryListOptions()
+	if options.Type != "owner" {
+		t.Fatalf("expected only owned repositories, got type %q", options.Type)
+	}
+	if options.PerPage != 100 {
+		t.Fatalf("expected 100 repositories per page, got %d", options.PerPage)
+	}
+}
+
 func stringPointer(value string) *string { return &value }

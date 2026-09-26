@@ -98,7 +98,7 @@ func (c *Client) GetProfile(ctx context.Context, username string) (*UserProfile,
 }
 
 func (c *Client) GetRepositories(ctx context.Context, username string) ([]Repository, error) {
-	opt := &gh.RepositoryListByUserOptions{Type: "all", Sort: "updated", Direction: "desc", ListOptions: gh.ListOptions{PerPage: 100}}
+	opt := repositoryListOptions()
 	var all []Repository
 	for {
 		repos, resp, err := c.client.Repositories.ListByUser(ctx, username, opt)
@@ -118,6 +118,10 @@ func (c *Client) GetRepositories(ctx context.Context, username string) ([]Reposi
 		opt.Page = resp.NextPage
 	}
 	return all, nil
+}
+
+func repositoryListOptions() *gh.RepositoryListByUserOptions {
+	return &gh.RepositoryListByUserOptions{Type: "owner", Sort: "updated", Direction: "desc", ListOptions: gh.ListOptions{PerPage: 100}}
 }
 
 func normalizePublicRepository(item *gh.Repository) (Repository, bool) {
