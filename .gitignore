@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+frontend/dist/
+
+# environment and secrets
+.env
+.env.*
+!.env.example
+*.secrets
+*.secret
+*.pem
+*.key
+secrets/
+credentials/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Go build output
+backend/bin/
+backend/*.exe
+
+# logs
+*.log

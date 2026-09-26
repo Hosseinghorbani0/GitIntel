@@ -1,0 +1,64 @@
+:root {
+  --sans: 'Vazirmatn', Tahoma, 'Segoe UI', sans-serif;
+  --heading: 'Vazirmatn', Tahoma, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+  font: 16px/1.65 var(--sans);
+  letter-spacing: 0;
+  color-scheme: dark;
+  color: #e8edf7;
+  background: #090b11;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  margin: 0;
+  text-align: start;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--sans);
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+h1 {
+  letter-spacing: 0;
+}
+h2 {
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+p {
+  margin: 0;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--text-h);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: #161d2a;
+}
