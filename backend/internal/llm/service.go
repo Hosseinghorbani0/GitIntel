@@ -26,6 +26,20 @@ func ProviderAvailabilityStatus(cfg Config) string {
 	return "unverified"
 }
 
+func paymentRequiredProviderError() *ProviderError {
+	return &ProviderError{
+		Category: ErrorPaymentRequired,
+		Message:  "Provider is blocked after a verified payment-required response",
+		Status:   402,
+		Diagnostic: &ProviderDiagnostic{
+			HTTPStatus:        402,
+			Classification:    ErrorPaymentRequired,
+			ProviderMessage:   "Last verified provider response requires payment or available credits.",
+			ResponseBodyBytes: 0,
+		},
+	}
+}
+
 func AnalysisReportsEnabled() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("LLM_ANALYSIS_ENABLED")), "true")
 }
@@ -33,6 +47,9 @@ func AnalysisReportsEnabled() bool {
 func GenerateInterpretation(ctx context.Context, cfg Config, evidence EvidenceContext, language string) (*Response, error) {
 	if !AnalysisReportsEnabled() {
 		return nil, ErrAnalysisDisabled
+	}
+	if ProviderAvailabilityStatus(cfg) == "payment_required" {
+		return nil, paymentRequiredProviderError()
 	}
 	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
 	manager.Load()

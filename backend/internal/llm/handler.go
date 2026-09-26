@@ -33,6 +33,10 @@ func HandleTest(w http.ResponseWriter, r *http.Request) {
 		writeLLMError(w, http.StatusBadRequest, "INVALID_LLM_CONFIG", err.Error())
 		return
 	}
+	if ProviderAvailabilityStatus(cfg) == "payment_required" {
+		writeLLMProviderError(w, http.StatusPaymentRequired, "PAYMENT_REQUIRED", paymentRequiredProviderError())
+		return
+	}
 	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
 	manager.Load()
 	if !manager.HasCredentials() {
@@ -100,7 +104,7 @@ func HandleStatus(w http.ResponseWriter, r *http.Request) {
 			"provider":                 cfg.Provider,
 			"model":                    cfg.Model,
 			"credential_status":        credentialStatus,
-			"provider_status":         providerStatus,
+			"provider_status":          providerStatus,
 			"analysis_reports_enabled": AnalysisReportsEnabled(),
 		},
 	})

@@ -54,6 +54,8 @@ GitIntel is a local MVP that turns a GitHub profile into structured engineering 
 
 Copy `.env.example` to the workspace-root `.env` and set local values there. The backend loads `.env` from its working directory or the workspace root; process environment variables take precedence. `.env` and local secret-file patterns are ignored by Git and must not be committed. Never put credentials in frontend configuration, source files, tests, or screenshots. Revoke and replace any key pasted into chat, logs, or other shared contexts.
 
+The configured Hugging Face/Qwen route last returned HTTP 402 for depleted included credits. GitIntel reports that provider state and blocks both model-test and report requests locally; it will not retry or rotate credentials. After configuring a genuinely available provider/model, verify it first, then explicitly set `LLM_PROVIDER_STATUS=available` and `LLM_ANALYSIS_ENABLED=true`.
+
 If the launcher reports a port conflict, it leaves the existing listener untouched. Choose alternate ports in the same terminal before running it, for example:
 
 ```bat

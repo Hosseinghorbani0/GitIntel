@@ -295,6 +295,31 @@ func TestProviderHTTPErrorCategories(t *testing.T) {
 	}
 }
 
+func TestKnownPaymentRequiredModelIsBlockedWithoutProviderRequest(t *testing.T) {
+	t.Setenv("LLM_ANALYSIS_ENABLED", "true")
+	t.Setenv("LLM_PROVIDER_STATUS", "")
+	t.Setenv("LLM_PROVIDER", "huggingface")
+	t.Setenv("HF_API_KEYS", "mock-test-key")
+	t.Setenv("HF_API_KEY", "")
+	t.Setenv("HF_MODEL", LastKnownPaymentRequiredModel)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	t.Setenv("HF_BASE_URL", server.URL)
+
+	response := httptest.NewRecorder()
+	HandleTest(response, httptest.NewRequest(http.MethodPost, "/api/llm/test", strings.NewReader(`{"language":"en"}`)))
+	if response.Code != http.StatusPaymentRequired || requests != 0 {
+		t.Fatalf("known depleted model must be blocked without a provider request, status=%d requests=%d", response.Code, requests)
+	}
+	if !strings.Contains(response.Body.String(), `"code":"PAYMENT_REQUIRED"`) {
+		t.Fatal("expected safe payment-required status")
+	}
+}
+
 func TestHuggingFaceProviderClassifiesMalformedAndEmptyResponses(t *testing.T) {
 	tests := []struct {
 		name string

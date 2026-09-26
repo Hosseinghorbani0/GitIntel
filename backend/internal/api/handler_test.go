@@ -148,3 +148,28 @@ func TestInterpretPaymentFailurePreservesDeterministicReport(t *testing.T) {
 		t.Fatal("deterministic report must remain available after AI provider failure")
 	}
 }
+
+func TestInterpretKnownDepletedModelMakesNoProviderRequest(t *testing.T) {
+	t.Setenv("LLM_ANALYSIS_ENABLED", "true")
+	t.Setenv("LLM_PROVIDER_STATUS", "")
+	t.Setenv("LLM_PROVIDER", "huggingface")
+	t.Setenv("HF_API_KEYS", "mock-test-key")
+	t.Setenv("HF_API_KEY", "")
+	t.Setenv("HF_MODEL", llm.LastKnownPaymentRequiredModel)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	t.Setenv("HF_BASE_URL", server.URL)
+
+	cacheStore := cache.NewCache(time.Minute)
+	cacheStore.Set("analysis:octocat", analyzeResult{Profile: gh.UserProfile{Username: "octocat"}, Evidence: llm.EvidenceContext{SchemaVersion: "1"}})
+	handler := NewHandler(cacheStore, analytics.NewEngine())
+	response := httptest.NewRecorder()
+	handler.Interpret(response, httptest.NewRequest(http.MethodPost, "/api/interpret", strings.NewReader(`{"username":"octocat","language":"en"}`)))
+	if response.Code != http.StatusPaymentRequired || requests != 0 {
+		t.Fatalf("known depleted model must be blocked without a provider request, status=%d requests=%d", response.Code, requests)
+	}
+}
