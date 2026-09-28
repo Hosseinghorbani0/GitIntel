@@ -1,64 +1,47 @@
 :root {
-  --sans: 'Vazirmatn', Tahoma, 'Segoe UI', sans-serif;
-  --heading: 'Vazirmatn', Tahoma, 'Segoe UI', sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-  font: 16px/1.65 var(--sans);
-  letter-spacing: 0;
+  --font-ui: 'Vazirmatn', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --canvas: #0b1010;
+  --surface: #101717;
+  --surface-raised: #151e1d;
+  --surface-hover: #1a2523;
+  --border: #27322f;
+  --border-soft: #202b28;
+  --text-primary: #e7eeea;
+  --text-secondary: #a5b4ad;
+  --text-muted: #72827a;
+  --accent: #9addb7;
+  --accent-strong: #72c894;
+  --accent-ink: #10231a;
+  --success: #91d5a6;
+  --warning: #e6c178;
+  --danger: #e28f87;
+  --info: #8bbfd2;
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --shadow-panel: 0 14px 36px rgb(0 0 0 / 18%);
+  font: 14px/1.6 var(--font-ui);
   color-scheme: dark;
-  color: #e8edf7;
-  background: #090b11;
+  color: var(--text-primary);
+  background: var(--canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-#root {
-  width: 100%;
-  min-height: 100svh;
-  margin: 0;
-  text-align: start;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: var(--sans);
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  letter-spacing: 0;
-}
-h2 {
-  line-height: 1.35;
-  letter-spacing: 0;
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: #161d2a;
-}
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--canvas); scroll-behavior: smooth; }
+body { min-width: 320px; min-height: 100vh; margin: 0; font-family: var(--font-ui); }
+button, input, select { font: inherit; }
+button { color: inherit; }
+a { color: inherit; }
+#root { width: 100%; min-height: 100svh; text-align: start; }
+h1, h2, h3, h4, p { margin-top: 0; }
+h1, h2, h3, h4 { color: var(--text-primary); }
+h1, h2 { font-weight: 600; letter-spacing: 0; }
+p { margin-bottom: 0; }
+code, pre { font-family: var(--font-mono); }
+::selection { color: var(--accent-ink); background: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
