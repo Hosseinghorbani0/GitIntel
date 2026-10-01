@@ -269,7 +269,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
       3. Rate-Limit Safety: Check `rateLimit.Remaining` before initiating README checks; skip and leave `"unverified"` if budget < 5 calls.
       4. Maximum Extra Calls: Capped strictly at 5 calls per analysis.
 
-- [ ] **GI-DATA-003 — Update `Repository` data model to support tri-state README status**
+- [x] **GI-DATA-003 — Update `Repository` data model to support tri-state README status**
   - Priority: P0
   - Depends on: GI-DATA-002
   - Problem: Storing a simple Go `bool` forces `false` when the state is actually "uncollected/unknown".
@@ -277,8 +277,18 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Update `Repository.HasReadme` to a tri-state type or add `ReadmeStatus string` (`"verified_present"`, `"verified_absent"`, `"unverified"`).
   - Validation: Struct marshals cleanly to JSON without breaking frontend compatibility.
   - Definition of Done: Data model explicitly represents unqueried states.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `e6955d8`
+    - Implementation Details:
+      - Defined `ReadmeStatus string` type with constants `ReadmeStatusVerifiedPresent` (`"verified_present"`), `ReadmeStatusVerifiedAbsent` (`"verified_absent"`), and `ReadmeStatusUnverified` (`"unverified"`).
+      - Added `ReadmeStatus ReadmeStatus` field with `json:"readme_status"` to `github.Repository` while preserving `HasReadme bool` for frontend JSON backward compatibility.
+      - Updated `normalizeRepository()` to set `repo.ReadmeStatus = ReadmeStatusUnverified` and `repo.HasReadme = false`.
+      - Updated `frontend/src/types.ts` `Repository` interface with `readme_status?: 'verified_present' | 'verified_absent' | 'unverified'`.
+      - Added unit test `TestRepositoryJSONMarshaling` in `client_test.go` confirming clean JSON serialization of both fields.
 
-- [ ] **GI-DATA-004 — Implement bounded README verification in GitHub client**
+- [x] **GI-DATA-004 — Implement bounded README verification in GitHub client**
   - Priority: P0
   - Depends on: GI-DATA-003
   - Problem: Live GitHub client must populate README state accurately.
@@ -286,6 +296,16 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Implement `client.CheckReadmePresence(ctx, owner, repo)` using lightweight HTTP HEAD request, bounded to candidate featured projects.
   - Validation: Integration test verifies `200 OK` translates to present and `404 Not Found` translates to absent.
   - Definition of Done: Client returns verified presence for known repositories.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `e6955d8`
+    - Implementation Details:
+      - Added `NewClientWithBaseURL(httpClient *http.Client, baseURL string, token string)` to support testing with `httptest.Server`.
+      - Implemented `client.CheckReadmePresence(ctx, owner, repo)` issuing `HEAD /repos/{owner}/{repo}/readme`, translating HTTP 200 to present, 404 to absent, and propagating errors.
+      - Implemented `client.VerifyCandidateReadmes(ctx, repos, maxCandidates)` to score and rank top candidates (up to 5), updating `ReadmeStatus` and `HasReadme` for candidates while defaulting unverified repos to `ReadmeStatusUnverified`.
+      - Integrated bounded verification into `api.Handler.Analyze()` when `rateLimit.Remaining >= 5`.
+      - Added unit tests `TestCheckReadmePresenceWithMockServer` and `TestVerifyCandidateReadmes` in `client_test.go`. All tests pass (`go test ./... -count=1`). Frontend builds cleanly (`tsc -b && vite build`).
 
 - [ ] **GI-DATA-005 — Update analyzer to respect tri-state README evidence**
   - Priority: P0
