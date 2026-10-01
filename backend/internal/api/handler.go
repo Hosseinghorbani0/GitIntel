@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"gitintel/backend/internal/analytics"
@@ -47,6 +48,38 @@ type analyzeResult struct {
 	Analysis  analytics.Analysis  `json:"analysis"`
 	Evidence  llm.EvidenceContext `json:"evidence"`
 	RateLimit gh.RateLimitInfo    `json:"rate_limit"`
+}
+
+type githubDataClient interface {
+	GetProfile(context.Context, string) (*gh.UserProfile, error)
+	GetRepositories(context.Context, string) ([]gh.Repository, error)
+	RateLimit(context.Context) (gh.RateLimitInfo, error)
+}
+
+func fetchGitHubData(ctx context.Context, client githubDataClient, username string, includeRateLimit bool) (*gh.UserProfile, []gh.Repository, gh.RateLimitInfo, error, error) {
+	var profile *gh.UserProfile
+	var repos []gh.Repository
+	var rateLimit gh.RateLimitInfo
+	var profileErr, reposErr error
+	var wait sync.WaitGroup
+	wait.Add(2)
+	go func() {
+		defer wait.Done()
+		profile, profileErr = client.GetProfile(ctx, username)
+	}()
+	go func() {
+		defer wait.Done()
+		repos, reposErr = client.GetRepositories(ctx, username)
+	}()
+	if includeRateLimit {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			rateLimit, _ = client.RateLimit(ctx)
+		}()
+	}
+	wait.Wait()
+	return profile, repos, rateLimit, profileErr, reposErr
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
@@ -97,17 +130,15 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, err := client.GetProfile(r.Context(), username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_PROFILE_ERROR", formatError(err))
+	profile, repos, limit, profileErr, reposErr := fetchGitHubData(r.Context(), client, username, true)
+	if profileErr != nil {
+		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
 	}
-	repos, err := client.GetRepositories(r.Context(), username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_REPO_ERROR", formatError(err))
+	if reposErr != nil {
+		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
 		return
 	}
-	limit, _ := client.RateLimit(r.Context())
 	analysis := h.engine.Analyze(*profile, repos)
 	evidence := llm.BuildLLMContext(*profile, repos, analysis)
 	result := analyzeResult{Profile: *profile, Repos: repos, Analysis: analysis, Evidence: evidence, RateLimit: limit}
@@ -227,14 +258,13 @@ func (h *Handler) Resume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, err := client.GetProfile(r.Context(), req.Username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_PROFILE_ERROR", formatError(err))
+	profile, repos, _, profileErr, reposErr := fetchGitHubData(r.Context(), client, req.Username, false)
+	if profileErr != nil {
+		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
 	}
-	repos, err := client.GetRepositories(r.Context(), req.Username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_REPO_ERROR", formatError(err))
+	if reposErr != nil {
+		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
 		return
 	}
 	analysis := h.engine.Analyze(*profile, repos)
@@ -252,14 +282,13 @@ func (h *Handler) Portfolio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, err := client.GetProfile(r.Context(), req.Username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_PROFILE_ERROR", formatError(err))
+	profile, repos, _, profileErr, reposErr := fetchGitHubData(r.Context(), client, req.Username, false)
+	if profileErr != nil {
+		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
 	}
-	repos, err := client.GetRepositories(r.Context(), req.Username)
-	if err != nil {
-		writeError(w, githubErrorStatus(err), "GITHUB_REPO_ERROR", formatError(err))
+	if reposErr != nil {
+		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
 		return
 	}
 	analysis := h.engine.Analyze(*profile, repos)

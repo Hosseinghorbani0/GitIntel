@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,67 @@ import (
 	"testing"
 	"time"
 )
+
+type barrierGitHubClient struct {
+	started chan string
+	release <-chan struct{}
+}
+
+func (c *barrierGitHubClient) GetProfile(context.Context, string) (*gh.UserProfile, error) {
+	c.started <- "profile"
+	<-c.release
+	return &gh.UserProfile{Username: "octocat"}, nil
+}
+
+func (c *barrierGitHubClient) GetRepositories(context.Context, string) ([]gh.Repository, error) {
+	c.started <- "repositories"
+	<-c.release
+	return []gh.Repository{{Name: "project"}}, nil
+}
+
+func (c *barrierGitHubClient) RateLimit(context.Context) (gh.RateLimitInfo, error) {
+	c.started <- "rate-limit"
+	<-c.release
+	return gh.RateLimitInfo{Remaining: 10}, nil
+}
+
+func TestFetchGitHubDataStartsIndependentRequestsConcurrently(t *testing.T) {
+	release := make(chan struct{})
+	client := &barrierGitHubClient{started: make(chan string, 3), release: release}
+	type fetchResult struct {
+		profile *gh.UserProfile
+		repos   []gh.Repository
+		limit   gh.RateLimitInfo
+	}
+	done := make(chan fetchResult, 1)
+	go func() {
+		profile, repos, limit, profileErr, reposErr := fetchGitHubData(context.Background(), client, "octocat", true)
+		if profileErr != nil || reposErr != nil {
+			done <- fetchResult{}
+			return
+		}
+		done <- fetchResult{profile: profile, repos: repos, limit: limit}
+	}()
+
+	started := make(map[string]bool, 3)
+	for range 3 {
+		select {
+		case request := <-client.started:
+			started[request] = true
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("GitHub requests did not all start before any response was released")
+		}
+	}
+	close(release)
+	result := <-done
+	if !started["profile"] || !started["repositories"] || !started["rate-limit"] {
+		t.Fatalf("expected all three independent requests to start, got %v", started)
+	}
+	if result.profile == nil || len(result.repos) != 1 || result.limit.Remaining != 10 {
+		t.Fatal("expected profile, repositories, and rate-limit data from the parallel fetch")
+	}
+}
 
 func TestGitHubErrorStatus(t *testing.T) {
 	tests := []struct {
