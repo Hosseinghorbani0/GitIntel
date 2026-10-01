@@ -4,7 +4,7 @@
 
 | Phase | Category | Status | Progress |
 |---|---|---|---:|
-| Phase 0 | Baseline & Safety | ⬜ Not Started | 0% |
+| Phase 0 | Baseline & Safety | 🟡 In Progress | 17% |
 | Phase 1 | Critical Data Integrity | ⬜ Not Started | 0% |
 | Phase 2 | Engineering Signal Integrity | ⬜ Not Started | 0% |
 | Phase 3 | Evidence Model & Schema Traceability | ⬜ Not Started | 0% |
@@ -124,7 +124,7 @@ Release Quality Gates (Gates 1–6)
 
 Goal: Establish an immutable baseline of the repository, verify existing test suites, and record environment status before making any modifications.
 
-- [ ] **GI-BASE-001 — Verify clean working tree and record baseline git commit**
+- [x] **GI-BASE-001 — Verify clean working tree and record baseline git commit**
   - Priority: P0
   - Depends on: None
   - Problem: Need an exact baseline reference point to track changes and prevent accidental regression.
@@ -132,6 +132,20 @@ Goal: Establish an immutable baseline of the repository, verify existing test su
   - Work: Run `git status`, record the current commit SHA (`git rev-parse HEAD`), and review uncommitted modifications in `engine.go` and `handler.go`.
   - Validation: `git status --porcelain` matches documented baseline.
   - Definition of Done: Git commit SHA and working tree status documented in execution logs.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Previous Release State: `8ea8c924881c793303b9afb1745369a9f3c146cf`
+    - Pre-existing Intentional Work Incorporated:
+      - `47b6198` docs: add engineering remediation roadmap and audit report
+      - `1e8e54d` perf(analytics): optimize featured project selection (`GI-PERF-001`)
+      - `91a568e` perf(api): parallelize GitHub data fetching (`GI-PERF-002`)
+      - `18c5e4f` docs(roadmap): record completed performance tasks
+    - New Controlled Baseline SHA: `18c5e4f6048aaa3de4556d2bb6013ad7d52ced8b`
+    - Working Tree State: Clean on tracked files; `import os.py` intentionally preserved as untracked scratch script.
+    - Validation:
+      - `git status --short` — PASS (only untracked `import os.py`)
+      - `git rev-parse HEAD` == `git rev-parse origin/main` — PASS (`18c5e4f6048aaa3de4556d2bb6013ad7d52ced8b`)
 
 - [ ] **GI-BASE-002 — Execute baseline Go backend test suite**
   - Priority: P0
