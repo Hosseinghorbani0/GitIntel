@@ -334,11 +334,13 @@ func selectFeatured(repos []gh.Repository) []FeaturedProject {
 	if len(repos) == 0 {
 		return nil
 	}
+	const limit = 5
 	type scored struct {
 		repo  gh.Repository
 		score float64
 	}
-	var items []scored
+	items := make([]scored, 0, limit)
+	sixMonthsAgo := time.Now().AddDate(0, -6, 0)
 	for _, repo := range repos {
 		score := float64(repo.Stars)*2 + float64(repo.Forks) + float64(repo.Watchers)/2
 		if repo.HasReadme {
@@ -353,18 +355,21 @@ func selectFeatured(repos []gh.Repository) []FeaturedProject {
 		if !repo.Fork {
 			score += 10
 		}
-		if repo.UpdatedAt.After(time.Now().AddDate(0, -6, 0)) {
+		if repo.UpdatedAt.After(sixMonthsAgo) {
 			score += 25
 		}
-		items = append(items, scored{repo: repo, score: score})
+		index := sort.Search(len(items), func(i int) bool { return items[i].score < score })
+		if index >= limit {
+			continue
+		}
+		if len(items) < limit {
+			items = append(items, scored{})
+		}
+		copy(items[index+1:], items[index:])
+		items[index] = scored{repo: repo, score: score}
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].score > items[j].score })
-	limit := 5
-	if len(items) < limit {
-		limit = len(items)
-	}
-	selected := make([]FeaturedProject, 0, limit)
-	for _, item := range items[:limit] {
+	selected := make([]FeaturedProject, 0, len(items))
+	for _, item := range items {
 		selected = append(selected, FeaturedProject{Repository: item.repo, Why: explainFeatured(item.repo)})
 	}
 	return selected

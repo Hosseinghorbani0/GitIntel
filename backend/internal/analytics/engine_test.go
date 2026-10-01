@@ -1,12 +1,41 @@
 package analytics
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	gh "gitintel/backend/internal/github"
 )
+
+func BenchmarkAnalyze1000Repositories(b *testing.B) {
+	now := time.Now()
+	languages := []string{"Go", "TypeScript", "Python", "Rust"}
+	repos := make([]gh.Repository, 1000)
+	for i := range repos {
+		repos[i] = gh.Repository{
+			Name:       fmt.Sprintf("repo-%d", i),
+			FullName:   fmt.Sprintf("octocat/repo-%d", i),
+			Language:   languages[i%len(languages)],
+			Stars:      i % 100,
+			Forks:      i % 20,
+			UpdatedAt:  now.Add(-time.Duration(i%365) * 24 * time.Hour),
+			PushedAt:   now.Add(-time.Duration(i%365) * 24 * time.Hour),
+			Fork:       i%5 == 0,
+			Archived:   i%17 == 0,
+			HasReadme:  i%2 == 0,
+			HasLicense: i%3 == 0,
+		}
+	}
+	engine := NewEngine()
+	profile := gh.UserProfile{Username: "octocat", DisplayName: "Octocat"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		engine.Analyze(profile, repos)
+	}
+}
 
 func TestBuildLanguageDistributionUsesRepositoryCounts(t *testing.T) {
 	repos := []gh.Repository{
@@ -41,6 +70,24 @@ func TestSelectFeaturedPrefersActiveDocumentedRepos(t *testing.T) {
 	}
 	if featured[0].Repository.Name != "active" {
 		t.Fatalf("expected the most active repo to rank first; got %s", featured[0].Repository.Name)
+	}
+}
+
+func TestSelectFeaturedKeepsOnlyHighestScoringRepositories(t *testing.T) {
+	repos := make([]gh.Repository, 10)
+	for i := range repos {
+		repos[i] = gh.Repository{Name: fmt.Sprintf("project-%d", i), Stars: i}
+	}
+
+	featured := selectFeatured(repos)
+	if len(featured) != 5 {
+		t.Fatalf("expected five featured projects, got %d", len(featured))
+	}
+	for i, project := range featured {
+		want := fmt.Sprintf("project-%d", 9-i)
+		if project.Repository.Name != want {
+			t.Fatalf("featured project %d = %q, want %q", i, project.Repository.Name, want)
+		}
 	}
 }
 
