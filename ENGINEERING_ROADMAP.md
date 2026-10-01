@@ -326,7 +326,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
       - Updated `selectFeatured()` and `explainFeatured()` to award +35 scoring boost and `"Verified README"` reason for repositories with verified README evidence.
       - Added unit tests `TestComputeDocumentationWithTriStateReadme` and `TestSelectFeaturedBoostsVerifiedReadme` in `engine_test.go`. All tests pass (`go test ./... -count=1`).
 
-- [ ] **GI-DATA-006 — Add regression tests asserting client does not hardcode `HasReadme = false`**
+- [x] **GI-DATA-006 — Add regression tests asserting client does not hardcode `HasReadme = false`**
   - Priority: P0
   - Depends on: GI-DATA-005
   - Problem: Existing `engine_test.go` passed because mock structs injected `HasReadme: true`, completely missing the production bug.
@@ -334,6 +334,15 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Add unit test in `github/client_test.go` asserting that `normalizeRepository` does not unilaterally set `HasReadme = false`.
   - Validation: Test fails if `repo.HasReadme = false` is reintroduced.
   - Definition of Done: Client test suite includes regression assertion.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `667a341`
+    - Implementation Details:
+      - Added regression test `TestNormalizeRepositoryDoesNotHardcodeReadmeAbsent` in `backend/internal/github/client_test.go`.
+      - Test asserts that `normalizeRepository()` sets `repo.ReadmeStatus == ReadmeStatusUnverified` and never asserts negative evidence (`ReadmeStatusVerifiedAbsent`) on uncollected data.
+      - Test spins up an HTTP mock server and runs `VerifyCandidateReadmes()` on a normalized repository with a README, asserting that `HasReadme` is updated to `true` and `ReadmeStatus` becomes `ReadmeStatusVerifiedPresent`, proving that the client never permanently hardcodes `HasReadme = false`.
+      - Validation: PASS — All tests pass with zero failures (`go test ./... -count=1`).
 
 ### Release Evidence Remediation
 - [ ] **GI-DATA-007 — Verify current `HasReleases` omission in `client.go`**
