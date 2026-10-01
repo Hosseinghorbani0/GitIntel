@@ -171,5 +171,51 @@ func TestRepositoryJSONMarshaling(t *testing.T) {
 	}
 }
 
+func TestNormalizeRepositoryDoesNotHardcodeReadmeAbsent(t *testing.T) {
+	// GI-DATA-006 Regression Test:
+	// Verify that normalizeRepository initializes ReadmeStatus to ReadmeStatusUnverified,
+	// rather than asserting negative evidence (verified absent).
+	item := &gh.Repository{
+		Name:     stringPointer("octocat-library"),
+		FullName: stringPointer("octocat/octocat-library"),
+	}
+	repo := normalizeRepository(item)
+	if repo.ReadmeStatus != ReadmeStatusUnverified {
+		t.Fatalf("regression: expected normalizeRepository to mark README as %q, got %q",
+			ReadmeStatusUnverified, repo.ReadmeStatus)
+	}
+	if repo.ReadmeStatus == ReadmeStatusVerifiedAbsent {
+		t.Fatal("regression: normalizeRepository must not assert negative evidence (ReadmeStatusVerifiedAbsent) for uncollected README data")
+	}
+
+	// Verify that when candidate verification runs on normalized repositories with a present README,
+	// HasReadme is updated to true and ReadmeStatus is updated to ReadmeStatusVerifiedPresent,
+	// proving that the client does not permanently lock HasReadme to false.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octocat/octocat-library/readme", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	verified := client.VerifyCandidateReadmes(context.Background(), []Repository{repo}, 1)
+	if len(verified) != 1 {
+		t.Fatalf("expected 1 verified repository, got %d", len(verified))
+	}
+	if !verified[0].HasReadme {
+		t.Fatal("regression: verified repository with README must have HasReadme=true, not hardcoded false")
+	}
+	if verified[0].ReadmeStatus != ReadmeStatusVerifiedPresent {
+		t.Fatalf("regression: expected ReadmeStatus=%q, got %q",
+			ReadmeStatusVerifiedPresent, verified[0].ReadmeStatus)
+	}
+}
+
 func stringPointer(value string) *string { return &value }
+
 
