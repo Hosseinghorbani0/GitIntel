@@ -229,22 +229,62 @@ func computeCollaboration(repos []gh.Repository) Signal {
 
 func computeDocumentation(repos []gh.Repository) Signal {
 	count := 0
+	verifiedReadmeCount := 0
+	unverifiedReadmeCount := 0
 	for _, repo := range repos {
-		if repo.HasReadme || repo.HasLicense || repo.HasDocs {
+		hasVerifiedReadme := repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme
+		if hasVerifiedReadme {
+			verifiedReadmeCount++
+		} else if repo.ReadmeStatus == gh.ReadmeStatusUnverified || repo.ReadmeStatus == "" {
+			unverifiedReadmeCount++
+		}
+		if hasVerifiedReadme || repo.HasLicense || repo.HasDocs {
 			count++
 		}
 	}
 	level := "Limited"
 	confidence := "Medium"
-	evidence := []string{"Few repositories show clear documentation patterns."}
+	var evidence []string
 	if count > 0 {
 		level = "Moderate"
-		evidence = []string{fmt.Sprintf("%d repositories show documentation-related metadata hints such as wiki flags, docs markers in repository metadata, or license metadata.", count)}
+		if verifiedReadmeCount > 0 {
+			evidence = append(evidence, fmt.Sprintf("%d repositories have verified README documentation.", verifiedReadmeCount))
+		}
+		evidence = append(evidence, fmt.Sprintf("%d repositories show documentation-related metadata hints such as wiki flags, docs markers, or license metadata.", count))
 		if count >= len(repos)/2 {
 			level = "Strong"
 		}
+	} else {
+		evidence = []string{"Few repositories show clear documentation patterns."}
 	}
-	return Signal{Name: "Documentation", Level: level, Classification: level, Confidence: confidence, Weight: 10, Value: float64(count), Metric: map[string]float64{"repositories_with_documentation_metadata_hints": float64(count), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"Uses license/wiki and name/description metadata hints only.", "README presence/content and documentation quality were not fetched or inspected."}, Explanation: "Documentation classification is based on repository metadata hints only."}
+
+	limitations := []string{
+		"Uses license/wiki and name/description metadata hints.",
+	}
+	if unverifiedReadmeCount > 0 {
+		limitations = append(limitations, fmt.Sprintf("README presence was unverified for %d repositories due to rate-limit bounding.", unverifiedReadmeCount))
+	}
+	limitations = append(limitations, "README content, structure, and documentation quality were not fetched or inspected.")
+
+	metrics := map[string]float64{
+		"repositories_with_documentation_metadata_hints": float64(count),
+		"repositories_with_verified_readme":              float64(verifiedReadmeCount),
+		"repositories_with_unverified_readme":            float64(unverifiedReadmeCount),
+		"repositories_total":                             float64(len(repos)),
+	}
+
+	return Signal{
+		Name:           "Documentation",
+		Level:          level,
+		Classification: level,
+		Confidence:     confidence,
+		Weight:         10,
+		Value:          float64(count),
+		Metric:         metrics,
+		Evidence:       evidence,
+		Limitations:    limitations,
+		Explanation:    "Documentation classification incorporates verified README presence and repository metadata hints.",
+	}
 }
 
 func computeReleaseActivity(repos []gh.Repository) Signal {
@@ -343,7 +383,7 @@ func selectFeatured(repos []gh.Repository) []FeaturedProject {
 	sixMonthsAgo := time.Now().AddDate(0, -6, 0)
 	for _, repo := range repos {
 		score := float64(repo.Stars)*2 + float64(repo.Forks) + float64(repo.Watchers)/2
-		if repo.HasReadme {
+		if repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme {
 			score += 35
 		}
 		if repo.HasLicense {
@@ -383,8 +423,10 @@ func explainFeatured(repo gh.Repository) []string {
 	if repo.UpdatedAt.After(time.Now().AddDate(0, -6, 0)) {
 		reasons = append(reasons, "Recent maintenance")
 	}
-	if repo.HasReadme || repo.HasDocs {
-		reasons = append(reasons, "Strong documentation")
+	if repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme {
+		reasons = append(reasons, "Verified README")
+	} else if repo.HasDocs {
+		reasons = append(reasons, "Documentation metadata")
 	}
 	if repo.HasLicense {
 		reasons = append(reasons, "License metadata")
