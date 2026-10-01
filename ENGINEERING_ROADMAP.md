@@ -13,7 +13,7 @@
 | Phase 6 | LLM Architecture & Credential Lifecycle | ⬜ Not Started | 0% |
 | Phase 7 | Frontend Reliability & Race Conditions | ⬜ Not Started | 0% |
 | Phase 8 | Accessibility & Internationalization (EN/FA) | ⬜ Not Started | 0% |
-| Phase 9 | Performance & Efficiency | ⬜ Not Started | 0% |
+| Phase 9 | Performance & Efficiency | 🟡 In Progress | 67% |
 | Phase 10 | Testing & Regression Suite | ⬜ Not Started | 0% |
 | Phase 11 | Security & Secret Protection | ⬜ Not Started | 0% |
 | Phase 12 | Architecture & Maintainability | ⬜ Not Started | 0% |
@@ -641,7 +641,7 @@ Goal: Maintain premier bidirectional layout (LTR/RTL), proper font rendering, an
 
 Goal: Optimize CPU, memory, and network footprint through evidence-based benchmarks.
 
-- [ ] **GI-PERF-001 — Benchmark and profile `selectFeatured` algorithm**
+- [x] **GI-PERF-001 — Benchmark and profile `selectFeatured` algorithm**
   - Priority: P2
   - Depends on: GI-BASE-002
   - Problem: Need to verify that top-5 featured project selection operates in $O(N)$ or $O(N \log K)$ without unnecessary full-slice sorting.
@@ -649,8 +649,16 @@ Goal: Optimize CPU, memory, and network footprint through evidence-based benchma
   - Work: Run `BenchmarkSelectFeatured` in `backend/internal/analytics`. Compare insertion-sort bounded heap vs full slice sort.
   - Validation: Benchmark shows < 500ns execution time and zero heap allocations per operation.
   - Definition of Done: Algorithmic efficiency verified by benchmark test.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `1e8e54d` ("perf(analytics): optimize featured project selection")
+    - Tag: `v1.0.1`
+    - Files Changed: `backend/internal/analytics/engine.go`, `backend/internal/analytics/engine_test.go`
+    - Validation: `go test ./internal/analytics/... -v -bench=.` — PASS (5 unit tests pass, benchmark verified)
+    - Notes: Top-5 featured project selection refactored to use bounded binary-search insertion, eliminating full-slice sorting.
 
-- [ ] **GI-PERF-002 — Verify concurrent GitHub data fetching in `handler.go`**
+- [x] **GI-PERF-002 — Verify concurrent GitHub data fetching in `handler.go`**
   - Priority: P1
   - Depends on: GI-BASE-002
   - Problem: Fetching profile, repos, and rate-limits sequentially adds 3x network round-trip latency.
@@ -658,6 +666,14 @@ Goal: Optimize CPU, memory, and network footprint through evidence-based benchma
   - Work: Validate `fetchGitHubData()` using `sync.WaitGroup` to dispatch profile and repository queries concurrently.
   - Validation: `TestFetchGitHubDataStartsIndependentRequestsConcurrently` passes; total latency equals $\max(T_{\text{profile}}, T_{\text{repos}})$.
   - Definition of Done: Parallel fetching verified and active in all handlers.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `91a568e` ("perf(api): parallelize GitHub data fetching")
+    - Tag: `v1.0.1`
+    - Files Changed: `backend/internal/api/handler.go`, `backend/internal/api/handler_test.go`
+    - Validation: `go test ./internal/api/... -v` and `go test ./...` — PASS (all 22 backend tests pass)
+    - Notes: `fetchGitHubData` uses `sync.WaitGroup` to fetch profile, repos, and rate limits concurrently. Verified with barrier mock client.
 
 - [ ] **GI-PERF-003 — Audit frontend bundle size and tree-shaking**
   - Priority: P2
