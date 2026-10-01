@@ -307,7 +307,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
       - Integrated bounded verification into `api.Handler.Analyze()` when `rateLimit.Remaining >= 5`.
       - Added unit tests `TestCheckReadmePresenceWithMockServer` and `TestVerifyCandidateReadmes` in `client_test.go`. All tests pass (`go test ./... -count=1`). Frontend builds cleanly (`tsc -b && vite build`).
 
-- [ ] **GI-DATA-005 — Update analyzer to respect tri-state README evidence**
+- [x] **GI-DATA-005 — Update analyzer to respect tri-state README evidence**
   - Priority: P0
   - Depends on: GI-DATA-004
   - Problem: [`engine.go:346,386,233`](file:///d:/GitIntel/backend/internal/analytics/engine.go#L346) awards points only on `repo.HasReadme == true`.
@@ -315,6 +315,16 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Update scoring logic in `selectFeatured()` and `computeDocumentation()` to score verified READMEs and disclose unverified counts in limitations.
   - Validation: Engine tests verify documented projects score higher than undocumented ones.
   - Definition of Done: Featured project scores change conditionally on verified README status.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Commit: `164ba71`
+    - Implementation Details:
+      - Updated `computeDocumentation()` in `backend/internal/analytics/engine.go` to count verified READMEs (`repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme`) and track unverified repositories (`repo.ReadmeStatus == gh.ReadmeStatusUnverified`).
+      - Populated metrics `repositories_with_verified_readme` and `repositories_with_unverified_readme`.
+      - Updated `Limitations` to explicitly disclose unverified counts (`"README presence was unverified for X repositories due to rate-limit bounding."`).
+      - Updated `selectFeatured()` and `explainFeatured()` to award +35 scoring boost and `"Verified README"` reason for repositories with verified README evidence.
+      - Added unit tests `TestComputeDocumentationWithTriStateReadme` and `TestSelectFeaturedBoostsVerifiedReadme` in `engine_test.go`. All tests pass (`go test ./... -count=1`).
 
 - [ ] **GI-DATA-006 — Add regression tests asserting client does not hardcode `HasReadme = false`**
   - Priority: P0
