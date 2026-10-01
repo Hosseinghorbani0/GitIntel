@@ -5,7 +5,7 @@
 | Phase | Category | Status | Progress |
 |---|---|---|---:|
 | Phase 0 | Baseline & Safety | 🟢 Completed | 100% |
-| Phase 1 | Critical Data Integrity | ⬜ Not Started | 0% |
+| Phase 1 | Critical Data Integrity | 🟡 In Progress | 18% |
 | Phase 2 | Engineering Signal Integrity | ⬜ Not Started | 0% |
 | Phase 3 | Evidence Model & Schema Traceability | ⬜ Not Started | 0% |
 | Phase 4 | GitHub API & Data Collection | ⬜ Not Started | 0% |
@@ -229,7 +229,7 @@ Goal: Establish an immutable baseline of the repository, verify existing test su
 Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer receives truth, not hardcoded placeholders.
 
 ### README Evidence Remediation
-- [ ] **GI-DATA-001 — Verify current `HasReadme` bug mechanism in `client.go`**
+- [x] **GI-DATA-001 — Verify current `HasReadme` bug mechanism in `client.go`**
   - Priority: P0
   - Depends on: GI-BASE-002
   - Problem: [`backend/internal/github/client.go:176`](file:///d:/GitIntel/backend/internal/github/client.go#L176) executes `repo.HasReadme = false` unconditionally for every repository.
@@ -237,8 +237,20 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Inspect `normalizeRepository()` in `client.go` and trace where `HasReadme` is consumed across the codebase.
   - Validation: Audit finding confirmed in source code.
   - Definition of Done: Code line and downstream consumers mapped.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Source Bug Location: `backend/internal/github/client.go:176` (`repo.HasReadme = false` inside `normalizeRepository`)
+    - Downstream Consumers Mapped:
+      - `backend/internal/analytics/engine.go:233` (`computeDocumentation`: documentation signal calculation)
+      - `backend/internal/analytics/engine.go:346` (`selectFeatured`: +15 score boost for documented repos)
+      - `backend/internal/analytics/engine.go:386` (`explainFeatured`: "documented repository" tag)
+      - `frontend/src/types.ts:37` (`Repository.has_readme` boolean)
+      - `frontend/src/App.tsx:220` (`{repo.has_readme && <span>{t.readmeEvidence}</span>}`)
+      - `frontend/src/App.tsx:320` (`selectedRepository.has_readme || selectedRepository.has_docs`)
+    - Mock Masking Identified: `backend/internal/analytics/engine_test.go:62-64,97-99` passed because synthetic mock structs injected `HasReadme: true`.
 
-- [ ] **GI-DATA-002 — Design bounded README existence detection strategy**
+- [x] **GI-DATA-002 — Design bounded README existence detection strategy**
   - Priority: P0
   - Depends on: GI-DATA-001
   - Problem: Fetching READMEs for 100+ repositories via individual REST calls (`/repos/{owner}/{repo}/readme`) would consume 100 rate-limit quota units per analysis, instantly depleting unauthenticated limits (60/hr).
@@ -248,6 +260,14 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
     2. For remaining repositories, preserve an explicit tri-state: `true`, `false`, or `unknown`.
   - Validation: Architectural review confirms rate-limit footprint does not exceed 5 extra calls per profile.
   - Definition of Done: Strategy documented with rate-limit budget analysis.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-01
+    - Strategy Specification:
+      1. Tri-State Model: Add `ReadmeStatus` (`"verified_present"`, `"verified_absent"`, `"unverified"`) on `Repository` struct while preserving `HasReadme bool` for frontend JSON backward compatibility (`HasReadme = (ReadmeStatus == "verified_present")`).
+      2. Bounded Verification: Query GitHub API `/repos/{owner}/{repo}/readme` only for top featured candidates (max 5 candidate repos sorted by stars/updates).
+      3. Rate-Limit Safety: Check `rateLimit.Remaining` before initiating README checks; skip and leave `"unverified"` if budget < 5 calls.
+      4. Maximum Extra Calls: Capped strictly at 5 calls per analysis.
 
 - [ ] **GI-DATA-003 — Update `Repository` data model to support tri-state README status**
   - Priority: P0
