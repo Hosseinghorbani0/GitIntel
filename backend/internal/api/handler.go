@@ -141,6 +141,7 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 	}
 	if limit.Remaining >= 5 && len(repos) > 0 {
 		repos = client.VerifyCandidateReadmes(r.Context(), repos, 5)
+		repos = client.VerifyCandidateReleases(r.Context(), repos, 5)
 	}
 	analysis := h.engine.Analyze(*profile, repos)
 	evidence := llm.BuildLLMContext(*profile, repos, analysis)
