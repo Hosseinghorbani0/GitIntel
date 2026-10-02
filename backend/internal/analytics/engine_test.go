@@ -233,3 +233,108 @@ func TestSelectFeaturedBoostsVerifiedReadme(t *testing.T) {
 	}
 }
 
+func TestComputeReleaseActivityWithTriStateReleases(t *testing.T) {
+	// 1. Two verified present releases -> Strong
+	reposStrong := []gh.Repository{
+		{Name: "core-api", ReleaseStatus: gh.ReleaseStatusVerifiedPresent, HasReleases: true, ReleaseCount: 5},
+		{Name: "web-client", ReleaseStatus: gh.ReleaseStatusVerifiedPresent, HasReleases: true, ReleaseCount: 2},
+		{Name: "helper-lib", ReleaseStatus: gh.ReleaseStatusUnverified},
+	}
+	signalStrong := computeReleaseActivity(reposStrong)
+	if signalStrong.Level != "Strong" {
+		t.Fatalf("expected Strong level for 2 verified releases, got %s", signalStrong.Level)
+	}
+	if signalStrong.Metric["repositories_with_verified_releases"] != 2 {
+		t.Fatalf("expected 2 verified releases in metric, got %f", signalStrong.Metric["repositories_with_verified_releases"])
+	}
+	if signalStrong.Metric["repositories_with_unverified_release"] != 1 {
+		t.Fatalf("expected 1 unverified release in metric, got %f", signalStrong.Metric["repositories_with_unverified_release"])
+	}
+	if len(signalStrong.Evidence) == 0 || !strings.Contains(signalStrong.Evidence[0], "core-api, web-client") {
+		t.Fatalf("expected evidence to cite repository names, got %v", signalStrong.Evidence)
+	}
+
+	// 2. One verified present release -> Moderate
+	reposModerate := []gh.Repository{
+		{Name: "core-api", ReleaseStatus: gh.ReleaseStatusVerifiedPresent, HasReleases: true, ReleaseCount: 1},
+		{Name: "docs-site", ReleaseStatus: gh.ReleaseStatusVerifiedAbsent},
+	}
+	signalModerate := computeReleaseActivity(reposModerate)
+	if signalModerate.Level != "Moderate" {
+		t.Fatalf("expected Moderate level for 1 verified release, got %s", signalModerate.Level)
+	}
+
+	// 3. All verified absent -> Limited (honest negative evidence)
+	reposAbsent := []gh.Repository{
+		{Name: "script-1", ReleaseStatus: gh.ReleaseStatusVerifiedAbsent},
+		{Name: "script-2", ReleaseStatus: gh.ReleaseStatusVerifiedAbsent},
+	}
+	signalAbsent := computeReleaseActivity(reposAbsent)
+	if signalAbsent.Level != "Limited" {
+		t.Fatalf("expected Limited level for verified absent releases, got %s", signalAbsent.Level)
+	}
+
+	// 4. Unverified repos -> Insufficient data (never penalized)
+	reposUnverified := []gh.Repository{
+		{Name: "repo-1", ReleaseStatus: gh.ReleaseStatusUnverified},
+		{Name: "repo-2", ReleaseStatus: gh.ReleaseStatusUnverified},
+	}
+	signalUnverified := computeReleaseActivity(reposUnverified)
+	if signalUnverified.Level != "Insufficient data" {
+		t.Fatalf("expected Insufficient data for unverified releases, got %s", signalUnverified.Level)
+	}
+	foundLimitation := false
+	for _, lim := range signalUnverified.Limitations {
+		if strings.Contains(lim, "Release status was unverified for 2 repositories") {
+			foundLimitation = true
+			break
+		}
+	}
+	if !foundLimitation {
+		t.Fatalf("expected limitations to disclose unverified count, got %v", signalUnverified.Limitations)
+	}
+}
+
+func TestSelectFeaturedBoostsVerifiedReleases(t *testing.T) {
+	now := time.Now()
+	repos := []gh.Repository{
+		{
+			Name:          "with-releases",
+			FullName:      "owner/with-releases",
+			Stars:         10,
+			UpdatedAt:     now,
+			ReleaseStatus: gh.ReleaseStatusVerifiedPresent,
+			HasReleases:   true,
+			ReleaseCount:  3,
+		},
+		{
+			Name:          "without-releases",
+			FullName:      "owner/without-releases",
+			Stars:         10,
+			UpdatedAt:     now,
+			ReleaseStatus: gh.ReleaseStatusVerifiedAbsent,
+			HasReleases:   false,
+		},
+	}
+
+	featured := selectFeatured(repos)
+	if len(featured) != 2 {
+		t.Fatalf("expected 2 featured repos, got %d", len(featured))
+	}
+	if featured[0].Repository.Name != "with-releases" {
+		t.Fatalf("expected with-releases to rank first due to release boost; got %s", featured[0].Repository.Name)
+	}
+
+	foundWhy := false
+	for _, why := range featured[0].Why {
+		if why == "Published releases" {
+			foundWhy = true
+			break
+		}
+	}
+	if !foundWhy {
+		t.Fatalf("expected 'Published releases' in why explanation, got %v", featured[0].Why)
+	}
+}
+
+

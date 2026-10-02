@@ -5,7 +5,7 @@
 | Phase | Category | Status | Progress |
 |---|---|---|---:|
 | Phase 0 | Baseline & Safety | 🟢 Completed | 100% |
-| Phase 1 | Critical Data Integrity | 🟡 In Progress | 18% |
+| Phase 1 | Critical Data Integrity | 🟡 In Progress | 91% |
 | Phase 2 | Engineering Signal Integrity | ⬜ Not Started | 0% |
 | Phase 3 | Evidence Model & Schema Traceability | ⬜ Not Started | 0% |
 | Phase 4 | GitHub API & Data Collection | ⬜ Not Started | 0% |
@@ -345,7 +345,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
       - Validation: PASS — All tests pass with zero failures (`go test ./... -count=1`).
 
 ### Release Evidence Remediation
-- [ ] **GI-DATA-007 — Verify current `HasReleases` omission in `client.go`**
+- [x] **GI-DATA-007 — Verify current `HasReleases` omission in `client.go`**
   - Priority: P0
   - Depends on: GI-BASE-002
   - Problem: Field `HasReleases` exists in `Repository` struct (`client.go:58`) but is never populated, permanently defaulting to `false`.
@@ -353,8 +353,16 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Audit lines 150–179 of `client.go` to confirm `HasReleases` is omitted.
   - Validation: Confirmed zero assignments to `repo.HasReleases` in `normalizeRepository()`.
   - Definition of Done: Source location and omission confirmed.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-02
+    - Commit: `feat(github): add bounded tri-state release verification`
+    - Implementation Details:
+      - Audited `normalizeRepository()` in `backend/internal/github/client.go` and verified zero assignments to `repo.HasReleases`, causing it to default permanently to `false`.
+      - Traced all consumers in `engine.go`, `handler.go`, and `types.ts`.
+      - Validation: Confirmed field omission and identified remediation strategy.
 
-- [ ] **GI-DATA-008 — Design bounded release data collection**
+- [x] **GI-DATA-008 — Design bounded release data collection**
   - Priority: P0
   - Depends on: GI-DATA-007
   - Problem: Querying `/repos/{owner}/{repo}/releases` for all repositories wastes API budget.
@@ -362,8 +370,17 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Design bounded release check: query releases/tags only for original, non-fork, non-archived repositories with updates in the last 180 days (max 5 candidate repos).
   - Validation: Budget calculation shows maximum 5 additional API requests for high-signal repositories.
   - Definition of Done: Bounded query logic approved.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-02
+    - Commit: `feat(github): add bounded tri-state release verification`
+    - Strategy Specification:
+      1. Candidate Filtering: Restrict queries to original (`!repo.Fork`), non-archived (`!repo.Archived`) repositories with `PushedAt` or `UpdatedAt` within 180 days (`time.Now().AddDate(0, 0, -180)`).
+      2. Scoring & Capping: Rank eligible candidates by `candidateScore(repo)` (stars, forks, recency) and bound verification to a maximum of 5 candidate repositories.
+      3. Rate-Limit Safety: Only execute candidate queries when API rate-limit `Remaining >= 5`; fallback to `unverified` if budget is constrained or errors occur.
+      4. Budget Bound: Exactly bounded to $\le 5$ additional API requests per profile analysis.
 
-- [ ] **GI-DATA-009 — Update `Repository` model and client for Release evidence**
+- [x] **GI-DATA-009 — Update `Repository` model and client for Release evidence**
   - Priority: P0
   - Depends on: GI-DATA-008
   - Problem: Struct must differentiate between "no releases exist", "releases verified", and "release data not queried".
@@ -371,8 +388,20 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Introduce `ReleaseStatus string` or populated `ReleaseCount int` on `Repository`. Update `client.go` to populate it for bounded candidate repositories.
   - Validation: Client test with HTTP mock verifies releases are counted when present.
   - Definition of Done: Live client correctly flags repositories with active release tags.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-02
+    - Commit: `feat(github): add bounded tri-state release verification`
+    - Implementation Details:
+      - Defined `ReleaseStatus string` with `ReleaseStatusVerifiedPresent`, `ReleaseStatusVerifiedAbsent`, and `ReleaseStatusUnverified`.
+      - Added `ReleaseStatus ReleaseStatus` and `ReleaseCount int` to `github.Repository` while preserving `HasReleases bool` for backward compatibility.
+      - Implemented `client.CheckReleasePresence(ctx, owner, repo)` querying `/repos/{owner}/{repo}/releases` with clean 200/404/error handling.
+      - Implemented `client.VerifyCandidateReleases(ctx, repos, maxCandidates)` applying the 180-day, original, non-archived filter and 5-repo cap.
+      - Integrated bounded release verification into `api.Handler.Analyze()` alongside README verification under `limit.Remaining >= 5`.
+      - Added `ReleaseStatus` union type, `release_status`, and `release_count` to `frontend/src/types.ts`.
+      - Added unit and regression tests in `client_test.go` (`TestCheckReleasePresenceWithMockServer`, `TestVerifyCandidateReleases`, `TestNormalizeRepositoryDoesNotHardcodeReleaseAbsent`). All tests pass.
 
-- [ ] **GI-DATA-010 — Connect Release signal in analyzer to verified release metadata**
+- [x] **GI-DATA-010 — Connect Release signal in analyzer to verified release metadata**
   - Priority: P0
   - Depends on: GI-DATA-009
   - Problem: [`engine.go:250-263`](file:///d:/GitIntel/backend/internal/analytics/engine.go#L250-L263) currently asserts "Release metadata is not currently fetched by the GitHub client".
@@ -380,6 +409,16 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Update `computeReleaseActivity()` to consume populated release metadata. Disclose unqueried repositories in limitations.
   - Validation: Repository with verified releases receives "Moderate" or "Strong" rating.
   - Definition of Done: Release signal outputs real repository release tags.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-02
+    - Commit: `feat(analytics): derive release signal from verified release evidence`
+    - Implementation Details:
+      - Updated `computeReleaseActivity()` in `backend/internal/analytics/engine.go` to evaluate `ReleaseStatus` and `HasReleases`.
+      - Configured rating levels: $\ge 2$ verified releases yields `"Strong"`, 1 verified release yields `"Moderate"`, verified absent repos yield `"Limited"`, and unverified repositories yield `"Insufficient data"` without penalty.
+      - Appended explicit limitations disclosing unverified repositories due to rate-limit bounding or age thresholds.
+      - Updated `selectFeatured()` and `explainFeatured()` to grant +15 scoring boost and `"Published releases"` reason.
+      - Added unit tests in `engine_test.go` (`TestComputeReleaseActivityWithTriStateReleases` and `TestSelectFeaturedBoostsVerifiedReleases`). All tests pass.
 
 ### Language Byte Volume Remediation
 - [ ] **GI-DATA-011 — Refactor language distribution to calculate code volume by bytes**

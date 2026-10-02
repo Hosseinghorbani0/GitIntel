@@ -288,18 +288,75 @@ func computeDocumentation(repos []gh.Repository) Signal {
 }
 
 func computeReleaseActivity(repos []gh.Repository) Signal {
-	count := countWithReleases(repos)
-	level := "Insufficient data"
-	confidence := "Low"
-	evidence := []string{"Release metadata is not currently fetched by the GitHub client, so release activity is unavailable."}
-	if count > 0 {
-		level = "Moderate"
-		evidence = []string{fmt.Sprintf("%d repositories expose release metadata or release-related signals.", count)}
-		if count >= 2 {
-			level = "Strong"
+	verifiedPresentCount := 0
+	verifiedAbsentCount := 0
+	unverifiedCount := 0
+	var releaseRepos []string
+
+	for _, repo := range repos {
+		if repo.ReleaseStatus == gh.ReleaseStatusVerifiedPresent || repo.HasReleases {
+			verifiedPresentCount++
+			name := repo.Name
+			if name == "" {
+				name = repo.FullName
+			}
+			if name != "" {
+				releaseRepos = append(releaseRepos, name)
+			}
+		} else if repo.ReleaseStatus == gh.ReleaseStatusVerifiedAbsent {
+			verifiedAbsentCount++
+		} else {
+			unverifiedCount++
 		}
 	}
-	return Signal{Name: "Release / Delivery Signals", Level: level, Classification: level, Confidence: confidence, Weight: 10, Value: float64(count), Metric: map[string]float64{"repositories_with_release_metadata": float64(count), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"The current GitHub client does not query release endpoints.", "No release or deployment conclusion can be made from the current collection."}, Explanation: "Release activity is unavailable unless release metadata is supplied."}
+
+	level := "Insufficient data"
+	confidence := "Low"
+	var evidence []string
+
+	if verifiedPresentCount >= 2 {
+		level = "Strong"
+		confidence = "Medium"
+		evidence = []string{fmt.Sprintf("%d repositories have verified releases or deployment tags (%s).", verifiedPresentCount, strings.Join(releaseRepos, ", "))}
+	} else if verifiedPresentCount == 1 {
+		level = "Moderate"
+		confidence = "Medium"
+		evidence = []string{fmt.Sprintf("1 repository has verified releases or deployment tags (%s).", releaseRepos[0])}
+	} else if verifiedAbsentCount > 0 && unverifiedCount == 0 {
+		level = "Limited"
+		confidence = "Medium"
+		evidence = []string{"Verified repositories showed no published releases or deployment tags."}
+	} else {
+		evidence = []string{"No verified releases were observed across candidate repositories."}
+	}
+
+	limitations := []string{
+		"Release verification is bounded to top active original repositories to preserve API rate limits.",
+	}
+	if unverifiedCount > 0 {
+		limitations = append(limitations, fmt.Sprintf("Release status was unverified for %d repositories due to rate-limit bounding or age thresholds.", unverifiedCount))
+	}
+	limitations = append(limitations, "Assets, changelogs, and deployment verification pipelines were not evaluated.")
+
+	metrics := map[string]float64{
+		"repositories_with_verified_releases": float64(verifiedPresentCount),
+		"repositories_with_verified_absent":   float64(verifiedAbsentCount),
+		"repositories_with_unverified_release": float64(unverifiedCount),
+		"repositories_total":                  float64(len(repos)),
+	}
+
+	return Signal{
+		Name:           "Release / Delivery Signals",
+		Level:          level,
+		Classification: level,
+		Confidence:     confidence,
+		Weight:         10,
+		Value:          float64(verifiedPresentCount),
+		Metric:         metrics,
+		Evidence:       evidence,
+		Limitations:    limitations,
+		Explanation:    "Release activity evaluates published GitHub releases on active original repositories.",
+	}
 }
 
 func hasTestingSignals(repo gh.Repository) bool {
@@ -345,7 +402,7 @@ func countArchived(repos []gh.Repository) int {
 func countWithReleases(repos []gh.Repository) int {
 	count := 0
 	for _, repo := range repos {
-		if repo.HasReleases {
+		if repo.ReleaseStatus == gh.ReleaseStatusVerifiedPresent || repo.HasReleases {
 			count++
 		}
 	}
@@ -385,6 +442,9 @@ func selectFeatured(repos []gh.Repository) []FeaturedProject {
 		score := float64(repo.Stars)*2 + float64(repo.Forks) + float64(repo.Watchers)/2
 		if repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme {
 			score += 35
+		}
+		if repo.ReleaseStatus == gh.ReleaseStatusVerifiedPresent || repo.HasReleases {
+			score += 15
 		}
 		if repo.HasLicense {
 			score += 15
@@ -427,6 +487,9 @@ func explainFeatured(repo gh.Repository) []string {
 		reasons = append(reasons, "Verified README")
 	} else if repo.HasDocs {
 		reasons = append(reasons, "Documentation metadata")
+	}
+	if repo.ReleaseStatus == gh.ReleaseStatusVerifiedPresent || repo.HasReleases {
+		reasons = append(reasons, "Published releases")
 	}
 	if repo.HasLicense {
 		reasons = append(reasons, "License metadata")
