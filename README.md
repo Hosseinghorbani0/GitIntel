@@ -1,167 +1,249 @@
 # GitIntel
 
-GitHub Engineering Intelligence
+[![Backend CI](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/backend.yml/badge.svg)](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/backend.yml)
+[![Frontend CI](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/frontend.yml/badge.svg)](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/frontend.yml)
+![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
+![Node Version](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-GitIntel is a local MVP that turns a GitHub profile into structured engineering signals, repository intelligence, and portfolio or resume-ready outputs. It emphasizes observable evidence from public GitHub metadata while avoiding claims that GitHub data can prove human authorship or AI usage.
+> Deterministic, evidence-grounded GitHub engineering intelligence and developer portfolio engine.
 
-## Features
+GitIntel transforms public GitHub profile and repository metadata into structured, transparent engineering signals, repository metrics, and markdown-formatted portfolio and resume summaries.
 
-- Real GitHub profile analysis using the public GitHub API
-- Repository metrics, language distribution, and usage stats
-- Deterministic engineering signal engine
-- Resume and portfolio markdown generation
-- Repository link export
-- Local Windows-friendly setup with no Docker or cloud dependencies
+---
 
-## Architecture
+## What Problem GitIntel Solves
 
-- Backend: Go
-- Frontend: React + TypeScript + Vite
-- Local cache: in-memory TTL cache
-- Data source: GitHub REST API via google/go-github
+Developer assessment tools typically suffer from two extremes:
+1. **Superficial Vanity Metrics**: Over-relying on stars, follower counts, and green commit squares without context.
+2. **Deceptive AI Scoring**: Claiming opaque algorithms can determine human coding intellect or detect AI-generated code.
 
-## Requirements
+GitIntel takes a radically honest, deterministic approach:
+* **Observable Evidence Only**: Evaluates only observable GitHub metadata and repository artifacts.
+* **Conservative Scoring**: Uses transparent weighted models where every score includes its underlying metrics, evidence strings, and explicit methodology limitations.
+* **Missing vs. Negative Evidence**: Strictly differentiates between absent features and unqueried/rate-limited metadata.
 
-- Windows 10 or 11
-- Go 1.26+
-- Node.js 24+
-- npm
-- Chrome or Edge
-
-## Windows Setup
-
-1. Clone the repository.
-2. Open a terminal in the project root.
-3. Run:
-
-   ```bat
-   run.bat
-   ```
-
-`run.bat` checks the local toolchain and default ports, installs frontend dependencies with `npm ci` if needed, and starts the Go API and Vite in separate visible command windows. It waits for `/api/health` and the Vite page before opening the frontend. Vite proxies `/api` to the backend port selected by the launcher. If a port is occupied or a service fails to become ready, the launcher reports the failure and does not terminate any process. Close the GitIntel Backend and GitIntel Frontend command windows to stop the services.
-
-## Environment Variables
-
-- `PORT` optional: backend port, defaults to `8080`
-- `GITINTEL_BACKEND_PORT` optional: `run.bat` backend port, defaults to `8080`
-- `GITINTEL_FRONTEND_PORT` optional: `run.bat` frontend port, defaults to `5173`
-- `GITINTEL_API_URL` optional: Vite API proxy target; set automatically by `run.bat`
-- `HF_API_KEYS` optional: comma-separated Hugging Face credentials for the local model test endpoint
-- `HF_BASE_URL`, `HF_MODEL`, and `LLM_PROVIDER` optional: Hugging Face-compatible provider configuration
-- `LLM_ANALYSIS_ENABLED` defaults to `false`; enable only after configuring and verifying an available provider/model
-- `LLM_PROVIDER_STATUS` accepts safe states such as `payment_required`, `rate_limited`, `unavailable`, `unverified`, `disabled`, or `available`; the known Hugging Face/Qwen model defaults to its last verified payment-required state
-- `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and `LLM_API_KEYS` support a generic OpenAI-compatible endpoint
-
-Copy `.env.example` to the workspace-root `.env` and set local values there. The backend loads `.env` from its working directory or the workspace root; process environment variables take precedence. `.env` and local secret-file patterns are ignored by Git and must not be committed. Never put credentials in frontend configuration, source files, tests, or screenshots. Revoke and replace any key pasted into chat, logs, or other shared contexts.
-
-The configured Hugging Face/Qwen route last returned HTTP 402 for depleted included credits. GitIntel reports that provider state and blocks both model-test and report requests locally; it will not retry or rotate credentials. After configuring a genuinely available provider/model, verify it first, then explicitly set `LLM_PROVIDER_STATUS=available` and `LLM_ANALYSIS_ENABLED=true`.
-
-If the launcher reports a port conflict, it leaves the existing listener untouched. Choose alternate ports in the same terminal before running it, for example:
-
-```bat
-set GITINTEL_BACKEND_PORT=8081
-set GITINTEL_FRONTEND_PORT=5174
-run.bat
-```
-
-The temporary model test is available at `POST /api/llm/test` with `{ "language": "en" }` or `{ "language": "fa" }`; it uses a fixed fixture. `POST /api/analyze` always runs deterministic analysis and caches bounded evidence. `POST /api/interpret` with `{ "username": "octocat", "language": "en" }` or `{ "username": "octocat", "language": "fa" }` interprets that cached evidence only when `LLM_ANALYSIS_ENABLED=true`. Provider failure never removes the deterministic analysis or report. Credential status is available from `GET /api/llm/status`; responses contain status only, never the configured key list.
-
-## Running Locally
-
-From the project root:
-
-```bat
-run.bat
-```
-
-Or start each side manually:
-
-```bat
-cd backend
-go run ./cmd/server
-```
-
-```bat
-cd frontend
-npm install
-set GITINTEL_API_URL=http://localhost:8080
-set GITINTEL_FRONTEND_PORT=5173
-npm run dev -- --host 127.0.0.1 --strictPort
-```
-
-## GitHub Token
-
-A personal access token may be entered in the analysis form to authenticate that analysis request. The frontend does not persist it in localStorage, logs, reports, or API responses. Repository results marked private are discarded by the GitHub client before they reach the deterministic analyzer or LLM evidence builder; private-repository access is not a supported analysis mode.
-
-## API
-
-### Health
-
-- `GET /api/health`
-
-### Analysis
-
-- `POST /api/analyze`
-  - Body: `{ "username": "octocat", "token": "optional" }`
-
-### Report endpoints
-
-- `GET /api/report/:username`
-- `POST /api/resume`
-- `POST /api/portfolio`
-- `GET /api/github/profile/:username`
-- `GET /api/github/repos/:username`
+---
 
 ## Engineering Signals
 
-The MVP uses a transparent weighted model and exposes the evidence used to generate each signal. The model is intentionally conservative and does not claim to measure engineering quality or prove human-only coding.
+GitIntel calculates 6 core engineering signals categorized by level (`Strong`, `Moderate`, `Limited`, or `Insufficient data`):
 
-Signal categories:
+| Signal | Description | Observable Evidence | Current Limitations |
+| :--- | :--- | :--- | :--- |
+| **Code Evolution** | Commit activity cadence and active repository maintenance lifespan. | Commit timestamps, creation dates, and push frequency across repos. | Does not inspect individual commit diffs or line counts. |
+| **Maintenance** | Active upkeep versus abandoned or archived repositories. | Archived status, recent push dates, active issue resolution. | Dependent on public GitHub activity windows. |
+| **Testing Evidence** | Presence of automated testing artifacts. | Name-marker heuristics across repositories. | Test assertions, coverage percentages, and test runs are not executed. |
+| **Collaboration** | Team and open-source interaction indicators. | Forked repositories, open issues, and pull request activity. | Code review depth and discussion quality are not parsed. |
+| **Documentation** | Codebase documentation completeness and discoverability. | Bounded tri-state README verification (`verified`, `missing`, `unverified`), license existence, and docs markers. | Detailed README verification is capped at the top 5 repositories to preserve GitHub rate limits. |
+| **Release / Delivery** | Production delivery and version tagging practices. | Release tags and published assets. | Currently reports "Insufficient data" pending release collection remediation ([GI-DATA-007](ENGINEERING_ROADMAP.md)). |
 
-- Code Evolution
-- Maintenance
-- Testing Evidence
-- Collaboration
-- Documentation
-- Release / Delivery Signals
+### Bounded README Verification & Rate Limits
+To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 5,000/hour authenticated with PAT):
+* Repositories start in an `unverified` README status.
+* The client performs deep verification (`/repos/{owner}/{repo}/readme`) for a bounded candidate set of up to **5 top original repositories**.
+* Any HTTP 403 / 429 response gracefully falls back to `unverified` rather than failing the analysis or misreporting missing documentation.
 
-Each signal includes:
+---
 
-- value
-- confidence
-- evidence
-- explanation
+## Features
 
-The user-facing interface describes results as "Strong", "Moderate", "Limited", or "Insufficient data" instead of pretending to offer objective skill scores.
+* **Public GitHub Profile Analysis**: Fast, non-destructive metadata ingestion via the GitHub REST API.
+* **Deterministic Signal Scoring**: Transparent evidence arrays, confidence ratings, and limitations disclosures.
+* **Language Distribution**: Breakdown of top languages across active repositories.
+* **Automated Exports**:
+  * Markdown Resume summary ready for developer profiles.
+  * Markdown Portfolio summary highlighting featured projects and justifications.
+* **Optional LLM Interpretation**: Guardrailed, bounded narrative interpretation (disabled by default; requires explicit provider configuration).
+* **Local-First & Privacy Preserving**: Runs entirely on `localhost`. Personal Access Tokens (PATs) entered in the UI are never stored in `localStorage`, database, or server logs. Private repositories are filtered out and not retained.
 
-The current analyzer uses repository metadata and timestamps; it does not inspect commits, source files, test directories, CI workflows, README contents, contributor lists, or release endpoints. Test and documentation signals are limited metadata/name hints, while release evidence is unavailable until release metadata is fetched. These signals must not be interpreted as code-quality or competence measurements.
+---
 
-The Hugging Face model-testing endpoint is separate from profile analysis and uses a fixed fixture. The optional interpretation endpoint receives bounded evidence from the most recent deterministic analysis; repository descriptions and source code are excluded.
+## Tech Stack & Architecture
 
-## Privacy
+```text
+┌────────────────────────────────────────────────────────┐
+│                   React 19 + Vite                      │
+│         (TypeScript, Lucide React, Vazirmatn)          │
+│                http://localhost:5173                   │
+└───────────────────────────▲────────────────────────────┘
+                            │ /api reverse proxy
+┌───────────────────────────▼────────────────────────────┐
+│                    Go 1.26 Backend                     │
+│                 http://localhost:8080                  │
+│                                                        │
+│  ┌──────────────────┐  ┌─────────────────────────────┐ │
+│  │   HTTP Handler   │  │   Analytics Signal Engine   │ │
+│  │  (api/handler.go)│  │   (analytics/engine.go)     │ │
+│  └────────▲─────────┘  └──────────────▲──────────────┘ │
+│           │                           │                │
+│  ┌────────▼─────────┐  ┌──────────────▼──────────────┐ │
+│  │ In-Memory Cache  │  │     GitHub API Client       │ │
+│  │ (5-min TTL map)  │  │  (google/go-github/v72)     │ │
+│  └──────────────────┘  └──────────────▲──────────────┘ │
+└───────────────────────────────────────┼────────────────┘
+                                        │ HTTPS (REST)
+                         ┌──────────────▼──────────────┐
+                         │      GitHub REST API        │
+                         │    api.github.com/v3        │
+                         └─────────────────────────────┘
+```
 
-GitIntel analyzes GitHub data available to the connected account. It does not claim to determine whether code was written by a human or AI. Engineering signals are observable evidence only.
+* **Backend**: Go 1.26 (`cmd/server`), `net/http` with CORS, `google/go-github/v72`.
+* **Frontend**: React 19, TypeScript, Vite 8, Lucide React icons, Vazirmatn typography.
+* **Caching**: In-memory thread-safe TTL cache (5-minute default window).
+* **Optional AI Layer**: OpenAI-compatible / Hugging Face router interface with prompt bounds.
 
-## Limitations
+---
 
-- GitHub API rate limits can affect large portfolios
-- Some activity metrics are not reliably available from the public API
-- Repository metadata is limited to what the GitHub API exposes
-- AI report generation remains disabled until a provider/model is explicitly configured and enabled
-- GitHub commit, contributor, CI, README-content, and release metadata are not currently collected by the analyzer
-- This is an MVP and does not yet include OAuth, persistent accounts, or team analytics
+## Quick Start
 
-## Roadmap
+### Prerequisites
+* **Go**: 1.26 or newer
+* **Node.js**: 24 or newer
+* **npm**: 11 or newer
 
-- GitHub OAuth integration
-- Persistent historical snapshots
-- richer activity rollups and repository timeline analytics
-- recruiter-ready exports and enterprise-ready features
+### Option A: Windows (One-Click Launcher)
+Run [run.bat](run.bat) from the root directory:
+```bat
+run.bat
+```
+`run.bat` automatically:
+1. Validates Go, Node.js, and npm in `PATH`.
+2. Checks port availability (default backend `8080`, frontend `5173`).
+3. Runs `npm ci` in `frontend/` if dependencies are not yet installed.
+4. Starts backend and frontend in separate command windows.
+5. Polls `/api/health` until ready and opens `http://localhost:5173/` in your browser.
 
-## Contributing
+*(To stop the application, simply close the opened Backend and Frontend command windows.)*
 
-Open an issue or pull request with a clear explanation and a focused change.
+### Option B: Linux / macOS / Manual Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Hosseinghorbani0/GitIntel.git
+cd GitIntel
+
+# 2. Start Backend
+cd backend
+go run ./cmd/server
+# Backend listens on http://localhost:8080
+
+# 3. Start Frontend (in a new terminal)
+cd frontend
+npm ci
+npm run dev -- --host 127.0.0.1 --strictPort
+# Frontend opens at http://localhost:5173
+```
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env` in the repository root to customize your configuration:
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `PORT` | `8080` | Backend HTTP listening port. |
+| `GITINTEL_BACKEND_PORT` | `8080` | Launcher backend port override (`run.bat`). |
+| `GITINTEL_FRONTEND_PORT` | `5173` | Launcher frontend port override (`run.bat`). |
+| `GITINTEL_API_URL` | `http://localhost:8080` | Target URL for Vite `/api` reverse proxy. |
+| `LLM_ANALYSIS_ENABLED` | `false` | Enable/disable optional LLM narrative interpretation. |
+| `LLM_PROVIDER_STATUS` | `payment_required` | Safe provider state (`available`, `rate_limited`, `payment_required`, etc.). |
+| `LLM_PROVIDER` | `huggingface` | Provider type (`huggingface` or generic OpenAI-compatible). |
+| `HF_BASE_URL` | `https://router.huggingface.co/v1` | Hugging Face router endpoint. |
+| `HF_MODEL` | `Qwen/Qwen3.8-2.4T-A95B:novita` | Model identifier. |
+| `HF_API_KEYS` | *(empty)* | Comma-separated API keys for provider. |
+| `LLM_BASE_URL` | *(empty)* | Custom OpenAI-compatible endpoint. |
+| `LLM_MODEL` | *(empty)* | Custom model name. |
+| `LLM_API_KEY` | *(empty)* | Single API key for custom endpoint. |
+
+> [!WARNING]
+> Never commit `.env` or files containing API keys or personal access tokens. GitIntel's `.gitignore` explicitly excludes `.env` and credential files.
+
+---
+
+## Running Tests & Linting
+
+### Backend
+```bash
+cd backend
+
+# Run Go static analysis
+go vet ./...
+
+# Run unit and regression tests
+go test ./... -count=1
+```
+
+### Frontend
+```bash
+cd frontend
+
+# Run ESLint
+npm run lint
+
+# Run TypeScript typecheck & production build
+npm run build
+```
+
+---
+
+## Project Structure
+
+```text
+GitIntel/
+├── .github/
+│   └── workflows/
+│       ├── backend.yml       # GitHub Actions: Go vet & test
+│       └── frontend.yml      # GitHub Actions: Node lint & Vite build
+├── backend/
+│   ├── cmd/server/main.go    # HTTP server, routing, and CORS middleware
+│   ├── internal/
+│   │   ├── analytics/        # Deterministic signal calculation & tests
+│   │   ├── api/              # HTTP request handlers & API contracts
+│   │   ├── cache/            # In-memory TTL cache
+│   │   ├── github/           # GitHub REST client with bounded README checks
+│   │   └── llm/              # Optional LLM integration & status endpoints
+│   ├── go.mod                # Go module definition (go 1.26)
+│   └── go.sum                # Go checksums
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx           # Main application view & signal dashboard
+│   │   ├── types.ts          # TypeScript domain models (ReadmeStatus, Signals)
+│   │   ├── i18n.ts           # Dual-language support (English / Persian)
+│   │   └── services/         # API client layer
+│   ├── package.json          # Node dependencies (React 19, Vite 8)
+│   └── vite.config.ts        # Vite configuration & backend proxy
+├── CONTRIBUTING.md           # Contribution guidelines & open tasks
+├── ENGINEERING_ROADMAP.md    # Canonical remediation roadmap & checklist
+├── dev.bat / run.bat         # Automated Windows launchers
+└── README.md                 # Project documentation
+```
+
+---
+
+## Contributing & Help Wanted
+
+GitIntel is in active remediation and development under our [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md). We actively welcome contributions from developers of all experience levels!
+
+### Open Areas Ready for Collaboration
+* **Release Evidence Remediation ([GI-DATA-007](ENGINEERING_ROADMAP.md) to [GI-DATA-010](ENGINEERING_ROADMAP.md))**:
+  * Identify repositories with releases and populate `ReleaseStatus` / `ReleaseCount`.
+  * Transition the Release/Delivery signal from "Insufficient data" to genuine evidence.
+* **Language Byte Volume Weighting ([GI-DATA-011](ENGINEERING_ROADMAP.md))**:
+  * Query `/repos/{owner}/{repo}/languages` to weight developer languages by actual codebase bytes instead of raw repository counts.
+* **Signal Artifact Detection ([GI-SIGNAL-001](ENGINEERING_ROADMAP.md) to [GI-SIGNAL-003](ENGINEERING_ROADMAP.md))**:
+  * Replace name-based testing heuristics with verified test directories (`tests/`, `spec/`) and CI workflow detection (`.github/workflows/`).
+* **Frontend Component Decomposition**:
+  * Break down the monolithic `App.tsx` into modular React components and add `AbortController` request cancellation.
+* **Automated Frontend Testing**:
+  * Set up Vitest or React Testing Library for frontend component testing.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full instructions on local setup, picking roadmap tasks, coding guidelines, and submitting small, reviewable pull requests.
+
+---
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
