@@ -36,13 +36,15 @@ GitIntel calculates 6 core engineering signals categorized by level (`Strong`, `
 | **Testing Evidence** | Presence of automated testing artifacts. | Name-marker heuristics across repositories. | Test assertions, coverage percentages, and test runs are not executed. |
 | **Collaboration** | Team and open-source interaction indicators. | Forked repositories, open issues, and pull request activity. | Code review depth and discussion quality are not parsed. |
 | **Documentation** | Codebase documentation completeness and discoverability. | Bounded tri-state README verification (`verified`, `missing`, `unverified`), license existence, and docs markers. | Detailed README verification is capped at the top 5 repositories to preserve GitHub rate limits. |
-| **Release / Delivery** | Production delivery and version tagging practices. | Release tags and published assets. | Currently reports "Insufficient data" pending release collection remediation ([GI-DATA-007](ENGINEERING_ROADMAP.md)). |
+| **Release / Delivery** | Production delivery and version tagging practices. | Bounded tri-state release verification (`verified_present`, `verified_absent`, `unverified`) and published release counts. | Release checks are bounded to at most 5 active original repositories updated in the last 180 days; deployment pipelines and release assets are not inspected. |
 
-### Bounded README Verification & Rate Limits
+### Bounded Verification & Rate Limits
 To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 5,000/hour authenticated with PAT):
-* Repositories start in an `unverified` README status.
-* The client performs deep verification (`/repos/{owner}/{repo}/readme`) for a bounded candidate set of up to **5 top original repositories**.
-* Any HTTP 403 / 429 response gracefully falls back to `unverified` rather than failing the analysis or misreporting missing documentation.
+* Repositories start in an `unverified` status for README and release data.
+* When the API rate limit has `Remaining >= 5`, the client performs bounded checks:
+  * **README Verification**: Queries `/repos/{owner}/{repo}/readme` for up to **5 top original repositories**.
+  * **Release Verification**: Queries `/repos/{owner}/{repo}/releases` for up to **5 top original repositories** (non-fork, non-archived, updated within the last 180 days).
+* Any HTTP 403 / 429 response gracefully falls back to `unverified` rather than failing the analysis or misreporting missing evidence.
 
 ---
 
