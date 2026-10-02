@@ -35,6 +35,7 @@ export interface Repository {
   visibility: string
   has_docs: boolean
   has_readme: boolean
+  readme_status?: 'verified_present' | 'verified_absent' | 'unverified'
   has_license: boolean
   has_releases: boolean
 }
