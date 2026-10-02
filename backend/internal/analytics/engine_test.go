@@ -132,3 +132,104 @@ func TestTestingEvidenceDisclosesRepositoryNameHeuristic(t *testing.T) {
 		t.Fatal("test-name marker should be reported as a heuristic, not verified test artifacts")
 	}
 }
+
+func TestComputeDocumentationWithTriStateReadme(t *testing.T) {
+	repos := []gh.Repository{
+		{
+			Name:         "repo-verified-readme",
+			ReadmeStatus: gh.ReadmeStatusVerifiedPresent,
+			HasReadme:    true,
+		},
+		{
+			Name:         "repo-verified-absent",
+			ReadmeStatus: gh.ReadmeStatusVerifiedAbsent,
+			HasReadme:    false,
+		},
+		{
+			Name:         "repo-unverified-1",
+			ReadmeStatus: gh.ReadmeStatusUnverified,
+			HasReadme:    false,
+		},
+		{
+			Name:         "repo-unverified-2",
+			ReadmeStatus: gh.ReadmeStatusUnverified,
+			HasReadme:    false,
+		},
+	}
+
+	signal := computeDocumentation(repos)
+	if signal.Level != "Moderate" {
+		t.Fatalf("expected Moderate documentation signal, got %s", signal.Level)
+	}
+
+	if signal.Metric["repositories_with_verified_readme"] != 1 {
+		t.Fatalf("expected 1 repo with verified readme, got %f", signal.Metric["repositories_with_verified_readme"])
+	}
+	if signal.Metric["repositories_with_unverified_readme"] != 2 {
+		t.Fatalf("expected 2 repos with unverified readme, got %f", signal.Metric["repositories_with_unverified_readme"])
+	}
+
+	foundLimitation := false
+	for _, lim := range signal.Limitations {
+		if strings.Contains(lim, "unverified for 2 repositories") {
+			foundLimitation = true
+			break
+		}
+	}
+	if !foundLimitation {
+		t.Fatalf("expected limitations to disclose unverified count, got %v", signal.Limitations)
+	}
+
+	foundEvidence := false
+	for _, ev := range signal.Evidence {
+		if strings.Contains(ev, "1 repositories have verified README") {
+			foundEvidence = true
+			break
+		}
+	}
+	if !foundEvidence {
+		t.Fatalf("expected evidence to cite verified README, got %v", signal.Evidence)
+	}
+}
+
+func TestSelectFeaturedBoostsVerifiedReadme(t *testing.T) {
+	now := time.Now()
+	repos := []gh.Repository{
+		{
+			Name:         "documented",
+			FullName:     "owner/documented",
+			Stars:        10,
+			UpdatedAt:    now,
+			ReadmeStatus: gh.ReadmeStatusVerifiedPresent,
+			HasReadme:    true,
+		},
+		{
+			Name:         "undocumented",
+			FullName:     "owner/undocumented",
+			Stars:        10,
+			UpdatedAt:    now,
+			ReadmeStatus: gh.ReadmeStatusVerifiedAbsent,
+			HasReadme:    false,
+		},
+	}
+
+	featured := selectFeatured(repos)
+	if len(featured) != 2 {
+		t.Fatalf("expected 2 featured repos, got %d", len(featured))
+	}
+	if featured[0].Repository.Name != "documented" {
+		t.Fatalf("expected documented repo to rank first due to verified README boost; got %s", featured[0].Repository.Name)
+	}
+
+	foundWhy := false
+	for _, why := range featured[0].Why {
+		if why == "Verified README" {
+			foundWhy = true
+			break
+		}
+	}
+	if !foundWhy {
+		t.Fatalf("expected 'Verified README' in why explanation, got %v", featured[0].Why)
+	}
+}
+
