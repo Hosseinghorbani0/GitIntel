@@ -38,7 +38,12 @@ export interface Repository {
   readme_status?: 'verified_present' | 'verified_absent' | 'unverified'
   has_license: boolean
   has_releases: boolean
+  release_status?: 'verified_present' | 'verified_absent' | 'unverified'
+  release_count?: number
 }
+
+export type ReadmeStatus = 'verified_present' | 'verified_absent' | 'unverified'
+export type ReleaseStatus = 'verified_present' | 'verified_absent' | 'unverified'
 
 export interface LanguageBucket {
   name: string
