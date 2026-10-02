@@ -139,6 +139,9 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
 		return
 	}
+	if limit.Remaining >= 5 && len(repos) > 0 {
+		repos = client.VerifyCandidateReadmes(r.Context(), repos, 5)
+	}
 	analysis := h.engine.Analyze(*profile, repos)
 	evidence := llm.BuildLLMContext(*profile, repos, analysis)
 	result := analyzeResult{Profile: *profile, Repos: repos, Analysis: analysis, Evidence: evidence, RateLimit: limit}
