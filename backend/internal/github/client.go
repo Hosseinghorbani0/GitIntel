@@ -22,6 +22,14 @@ const (
 	ReadmeStatusUnverified      ReadmeStatus = "unverified"
 )
 
+type ReleaseStatus string
+
+const (
+	ReleaseStatusVerifiedPresent ReleaseStatus = "verified_present"
+	ReleaseStatusVerifiedAbsent  ReleaseStatus = "verified_absent"
+	ReleaseStatusUnverified      ReleaseStatus = "unverified"
+)
+
 type RateLimitInfo struct {
 	Limit     int
 	Remaining int
@@ -66,8 +74,10 @@ type Repository struct {
 	HasDocs       bool         `json:"has_docs"`
 	HasReadme     bool         `json:"has_readme"`
 	ReadmeStatus  ReadmeStatus `json:"readme_status"`
-	HasLicense    bool         `json:"has_license"`
-	HasReleases   bool         `json:"has_releases"`
+	HasLicense    bool          `json:"has_license"`
+	HasReleases   bool          `json:"has_releases"`
+	ReleaseStatus ReleaseStatus `json:"release_status"`
+	ReleaseCount  int           `json:"release_count"`
 }
 
 type Client struct {
@@ -295,6 +305,113 @@ func (c *Client) VerifyCandidateReadmes(ctx context.Context, repos []Repository,
 	return result
 }
 
+// CheckReleasePresence queries GitHub for repository releases.
+// Returns (present bool, count int, err error).
+// Returns (true, count, nil) if releases exist, (false, 0, nil) on HTTP 404 or empty releases,
+// or (false, 0, err) on network/rate-limit/API errors.
+func (c *Client) CheckReleasePresence(ctx context.Context, owner, repo string) (bool, int, error) {
+	releases, resp, err := c.client.Repositories.ListReleases(ctx, owner, repo, &gh.ListOptions{PerPage: 10})
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, 0, nil
+		}
+		var errResp *gh.ErrorResponse
+		if errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound {
+			return false, 0, nil
+		}
+		return false, 0, err
+	}
+	count := len(releases)
+	if count > 0 {
+		return true, count, nil
+	}
+	return false, 0, nil
+}
+
+// VerifyCandidateReleases performs bounded release verification for up to maxCandidates top active original repositories.
+// Candidates must be original (!repo.Fork), non-archived (!repo.Archived), and updated/pushed within the last 180 days.
+// Candidates are ranked by candidate score. Verified repositories have ReleaseStatus set to ReleaseStatusVerifiedPresent
+// or ReleaseStatusVerifiedAbsent, HasReleases set accordingly, and ReleaseCount populated.
+// Repositories not checked retain ReleaseStatusUnverified.
+func (c *Client) VerifyCandidateReleases(ctx context.Context, repos []Repository, maxCandidates int) []Repository {
+	if len(repos) == 0 || maxCandidates <= 0 {
+		return repos
+	}
+
+	result := make([]Repository, len(repos))
+	copy(result, repos)
+	for i := range result {
+		if result[i].ReleaseStatus == "" {
+			result[i].ReleaseStatus = ReleaseStatusUnverified
+		}
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -180)
+	type indexedCandidate struct {
+		index int
+		score float64
+	}
+
+	var candidates []indexedCandidate
+	for i, r := range result {
+		if r.Fork || r.Archived {
+			continue
+		}
+		if r.PushedAt.Before(cutoff) && r.UpdatedAt.Before(cutoff) {
+			continue
+		}
+		candidates = append(candidates, indexedCandidate{index: i, score: candidateScore(r)})
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+
+	limit := maxCandidates
+	if len(candidates) < limit {
+		limit = len(candidates)
+	}
+
+	for i := 0; i < limit; i++ {
+		idx := candidates[i].index
+		target := result[idx]
+
+		owner := ""
+		repoName := ""
+		if strings.Contains(target.FullName, "/") {
+			parts := strings.SplitN(target.FullName, "/", 2)
+			owner = parts[0]
+			repoName = parts[1]
+		} else if target.Name != "" {
+			repoName = target.Name
+		}
+
+		if owner == "" || repoName == "" {
+			continue
+		}
+
+		present, count, err := c.CheckReleasePresence(ctx, owner, repoName)
+		if err != nil {
+			result[idx].ReleaseStatus = ReleaseStatusUnverified
+			result[idx].HasReleases = false
+			result[idx].ReleaseCount = 0
+			continue
+		}
+
+		if present {
+			result[idx].ReleaseStatus = ReleaseStatusVerifiedPresent
+			result[idx].HasReleases = true
+			result[idx].ReleaseCount = count
+		} else {
+			result[idx].ReleaseStatus = ReleaseStatusVerifiedAbsent
+			result[idx].HasReleases = false
+			result[idx].ReleaseCount = 0
+		}
+	}
+
+	return result
+}
+
 func normalizeRepository(item *gh.Repository) Repository {
 	repo := Repository{
 		Name:          item.GetName(),
@@ -324,6 +441,9 @@ func normalizeRepository(item *gh.Repository) Repository {
 	homepage := strings.ToLower(repo.Homepage)
 	repo.ReadmeStatus = ReadmeStatusUnverified
 	repo.HasReadme = false
+	repo.ReleaseStatus = ReleaseStatusUnverified
+	repo.ReleaseCount = 0
+	repo.HasReleases = false
 	repo.HasDocs = strings.Contains(description, "docs") || strings.Contains(homepage, "docs") || strings.Contains(strings.ToLower(repo.Name), "docs")
 	return repo
 }
