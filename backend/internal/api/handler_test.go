@@ -21,6 +21,25 @@ type barrierGitHubClient struct {
 	release <-chan struct{}
 }
 
+func TestOptionalCheckLimitsReserveCoreGitHubQuota(t *testing.T) {
+	tests := []struct {
+		remaining int
+		want      githubOptionalCheckLimits
+	}{
+		{remaining: 0, want: githubOptionalCheckLimits{}},
+		{remaining: 5, want: githubOptionalCheckLimits{}},
+		{remaining: 10, want: githubOptionalCheckLimits{}},
+		{remaining: 13, want: githubOptionalCheckLimits{readmes: 3}},
+		{remaining: 20, want: githubOptionalCheckLimits{readmes: 5, releases: 5}},
+		{remaining: 35, want: githubOptionalCheckLimits{readmes: 5, releases: 5, testing: 5, languages: 10}},
+	}
+	for _, test := range tests {
+		if got := optionalCheckLimits(test.remaining); got != test.want {
+			t.Errorf("optionalCheckLimits(%d) = %+v, want %+v", test.remaining, got, test.want)
+		}
+	}
+}
+
 func (c *barrierGitHubClient) GetProfile(context.Context, string) (*gh.UserProfile, error) {
 	c.started <- "profile"
 	<-c.release
