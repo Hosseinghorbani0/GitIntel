@@ -28,6 +28,7 @@ func main() {
 	mux.HandleFunc("/api/health", handler.Health)
 	mux.HandleFunc("/api/analyze", handler.Analyze)
 	mux.HandleFunc("/api/interpret", handler.Interpret)
+	mux.HandleFunc("/api/interpret/stream", handler.InterpretStream)
 	mux.HandleFunc("/api/report/", handler.Report)
 	mux.HandleFunc("/api/resume", handler.Resume)
 	mux.HandleFunc("/api/portfolio", handler.Portfolio)
