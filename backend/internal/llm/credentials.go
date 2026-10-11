@@ -3,10 +3,12 @@ package llm
 import (
 	"os"
 	"strings"
+	"sync"
 )
 
 // LLMCredentialManager owns the configured API keys and tracks whether they are usable.
 type LLMCredentialManager struct {
+	mu      sync.RWMutex
 	keyName string
 	items   []Credential
 	loaded  bool
@@ -17,6 +19,12 @@ func NewCredentialManager(keyName string) *LLMCredentialManager {
 }
 
 func (m *LLMCredentialManager) Load() []Credential {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return cloneCredentials(m.loadLocked())
+}
+
+func (m *LLMCredentialManager) loadLocked() []Credential {
 	if m.loaded {
 		return m.items
 	}
@@ -51,7 +59,9 @@ func (m *LLMCredentialManager) HasCredentials() bool {
 }
 
 func (m *LLMCredentialManager) SelectAvailable() (Credential, bool) {
-	for _, cred := range m.items {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, cred := range m.loadLocked() {
 		if cred.Disabled || !cred.Valid || cred.Value == "" {
 			continue
 		}
@@ -61,6 +71,9 @@ func (m *LLMCredentialManager) SelectAvailable() (Credential, bool) {
 }
 
 func (m *LLMCredentialManager) MarkInvalid(value string, reason string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.loadLocked()
 	for i := range m.items {
 		if m.items[i].Value == value {
 			m.items[i].Disabled = true
@@ -81,4 +94,8 @@ func (m *LLMCredentialManager) MaskedConfig() string {
 		masked = append(masked, MaskSecret(c.Value))
 	}
 	return strings.Join(masked, ", ")
+}
+
+func cloneCredentials(creds []Credential) []Credential {
+	return append([]Credential(nil), creds...)
 }
