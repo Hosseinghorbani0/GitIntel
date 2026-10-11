@@ -69,11 +69,12 @@ export async function getLLMStatus(): Promise<LLMConfigStatus> {
   return payload.data
 }
 
-export async function interpretAnalysis(username: string, language: 'en' | 'fa'): Promise<InterpretationResult> {
+export async function interpretAnalysis(username: string, language: 'en' | 'fa', signal?: AbortSignal): Promise<InterpretationResult> {
   const response = await fetch('/api/interpret', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, language }),
+    signal,
   })
   const payload: { success: boolean; data?: InterpretationResult; error?: { code: string } } = await response.json()
   if (!response.ok || !payload.success || !payload.data) {
