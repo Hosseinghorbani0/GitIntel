@@ -30,6 +30,14 @@ const (
 	ReleaseStatusUnverified      ReleaseStatus = "unverified"
 )
 
+type TestingArtifactsStatus string
+
+const (
+	TestingArtifactsVerifiedPresent TestingArtifactsStatus = "verified_present"
+	TestingArtifactsVerifiedAbsent  TestingArtifactsStatus = "verified_absent"
+	TestingArtifactsUnverified      TestingArtifactsStatus = "unverified"
+)
+
 type RateLimitInfo struct {
 	Limit     int
 	Remaining int
@@ -52,37 +60,46 @@ type UserProfile struct {
 }
 
 type Repository struct {
-	Name          string       `json:"name"`
-	FullName      string       `json:"full_name"`
-	Description   string       `json:"description"`
-	URL           string       `json:"url"`
-	Homepage      string       `json:"homepage"`
-	Stars         int          `json:"stars"`
-	Forks         int          `json:"forks"`
-	Watchers      int          `json:"watchers"`
-	OpenIssues    int          `json:"open_issues"`
-	Language      string       `json:"language"`
-	Topics        []string     `json:"topics"`
-	CreatedAt     time.Time    `json:"created_at"`
-	UpdatedAt     time.Time    `json:"updated_at"`
-	PushedAt      time.Time    `json:"pushed_at"`
-	DefaultBranch string       `json:"default_branch"`
-	License       string       `json:"license"`
-	Archived      bool         `json:"archived"`
-	Fork          bool         `json:"fork"`
-	Visibility    string       `json:"visibility"`
-	HasDocs       bool         `json:"has_docs"`
-	HasReadme     bool         `json:"has_readme"`
-	ReadmeStatus  ReadmeStatus `json:"readme_status"`
-	HasLicense    bool          `json:"has_license"`
-	HasReleases   bool          `json:"has_releases"`
-	ReleaseStatus ReleaseStatus `json:"release_status"`
-	ReleaseCount  int           `json:"release_count"`
+	Name                  string                 `json:"name"`
+	FullName              string                 `json:"full_name"`
+	Description           string                 `json:"description"`
+	URL                   string                 `json:"url"`
+	Homepage              string                 `json:"homepage"`
+	Stars                 int                    `json:"stars"`
+	Forks                 int                    `json:"forks"`
+	Watchers              int                    `json:"watchers"`
+	OpenIssues            int                    `json:"open_issues"`
+	Language              string                 `json:"language"`
+	LanguageBytes         map[string]int         `json:"-"`
+	TestingStatus         TestingArtifactsStatus `json:"testing_artifacts_status"`
+	TestingArtifacts      []string               `json:"testing_artifacts,omitempty"`
+	TestingCheckAttempted bool                   `json:"testing_artifacts_check_attempted"`
+	Topics                []string               `json:"topics"`
+	CreatedAt             time.Time              `json:"created_at"`
+	UpdatedAt             time.Time              `json:"updated_at"`
+	PushedAt              time.Time              `json:"pushed_at"`
+	DefaultBranch         string                 `json:"default_branch"`
+	License               string                 `json:"license"`
+	Archived              bool                   `json:"archived"`
+	Fork                  bool                   `json:"fork"`
+	Visibility            string                 `json:"visibility"`
+	HasDocs               bool                   `json:"has_docs"`
+	HasPages              bool                   `json:"has_pages"`
+	HasWiki               bool                   `json:"has_wiki"`
+	HasReadme             bool                   `json:"has_readme"`
+	ReadmeStatus          ReadmeStatus           `json:"readme_status"`
+	ReadmeCheckAttempted  bool                   `json:"readme_check_attempted"`
+	HasLicense            bool                   `json:"has_license"`
+	HasReleases           bool                   `json:"has_releases"`
+	ReleaseStatus         ReleaseStatus          `json:"release_status"`
+	ReleaseCount          int                    `json:"release_count"`
+	ReleaseCheckAttempted bool                   `json:"release_check_attempted"`
 }
 
 type Client struct {
-	client *gh.Client
-	token  string
+	client                *gh.Client
+	token                 string
+	repositoriesTruncated bool
 }
 
 func NewClientFromToken(token string) *Client {
@@ -92,6 +109,7 @@ func NewClientFromToken(token string) *Client {
 		baseHTTPClient = oauth2.NewClient(context.Background(), ts)
 		baseHTTPClient.Timeout = 20 * time.Second
 	}
+	baseHTTPClient = withETagCache(baseHTTPClient, token)
 	return &Client{client: gh.NewClient(baseHTTPClient), token: token}
 }
 
@@ -104,6 +122,7 @@ func NewClientWithBaseURL(httpClient *http.Client, baseURL string, token string)
 		httpClient = oauth2.NewClient(context.Background(), ts)
 		httpClient.Timeout = 20 * time.Second
 	}
+	httpClient = withETagCache(httpClient, token)
 	ghClient := gh.NewClient(httpClient)
 	if baseURL != "" {
 		if !strings.HasSuffix(baseURL, "/") {
@@ -145,6 +164,7 @@ func (c *Client) GetProfile(ctx context.Context, username string) (*UserProfile,
 func (c *Client) GetRepositories(ctx context.Context, username string) ([]Repository, error) {
 	opt := repositoryListOptions()
 	var all []Repository
+	c.repositoriesTruncated = false
 	for {
 		repos, resp, err := c.client.Repositories.ListByUser(ctx, username, opt)
 		if err != nil {
@@ -160,9 +180,178 @@ func (c *Client) GetRepositories(ctx context.Context, username string) ([]Reposi
 		if resp == nil || resp.NextPage == 0 {
 			break
 		}
+		if opt.Page >= maxRepositoryPages {
+			c.repositoriesTruncated = true
+			break
+		}
 		opt.Page = resp.NextPage
 	}
 	return all, nil
+}
+
+const maxRepositoryPages = 3
+
+func (c *Client) RepositoriesTruncated() bool {
+	return c.repositoriesTruncated
+}
+
+// PopulateLanguageBreakdown gathers language byte counts for the highest-signal repositories.
+func (c *Client) PopulateLanguageBreakdown(ctx context.Context, repos []Repository, maxCandidates int) ([]Repository, error) {
+	if len(repos) == 0 || maxCandidates <= 0 {
+		return repos, nil
+	}
+	result := make([]Repository, len(repos))
+	copy(result, repos)
+	candidates := make([]int, len(result))
+	for i := range candidates {
+		candidates[i] = i
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := result[candidates[i]], result[candidates[j]]
+		leftScore, rightScore := candidateScore(left), candidateScore(right)
+		if leftScore == rightScore {
+			return left.FullName < right.FullName
+		}
+		return leftScore > rightScore
+	})
+	if len(candidates) > maxCandidates {
+		candidates = candidates[:maxCandidates]
+	}
+	for _, index := range candidates {
+		repo := result[index]
+		parts := strings.SplitN(repo.FullName, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("repository %q has an invalid full name", repo.FullName)
+		}
+		langs, _, err := c.client.Repositories.ListLanguages(ctx, parts[0], parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("fetch language breakdown for %s: %w", repo.FullName, err)
+		}
+		result[index].LanguageBytes = map[string]int{}
+		for language, count := range langs {
+			if strings.TrimSpace(language) == "" || count <= 0 {
+				continue
+			}
+			result[index].LanguageBytes[language] = count
+		}
+	}
+	return result, nil
+}
+
+func (c *Client) VerifyTestingArtifacts(ctx context.Context, repos []Repository, maxCandidates int) ([]Repository, error) {
+	result := make([]Repository, len(repos))
+	copy(result, repos)
+	candidates := make([]int, 0, len(result))
+	for i := range result {
+		if result[i].TestingStatus == "" {
+			result[i].TestingStatus = TestingArtifactsUnverified
+		}
+		if !result[i].Fork {
+			candidates = append(candidates, i)
+		}
+	}
+	if maxCandidates <= 0 {
+		return result, nil
+	}
+	if maxCandidates > 5 {
+		maxCandidates = 5
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := result[candidates[i]], result[candidates[j]]
+		leftScore, rightScore := candidateScore(left), candidateScore(right)
+		if leftScore == rightScore {
+			return left.FullName < right.FullName
+		}
+		return leftScore > rightScore
+	})
+	if maxCandidates < len(candidates) {
+		candidates = candidates[:maxCandidates]
+	}
+	for _, index := range candidates {
+		repo := result[index]
+		parts := strings.SplitN(repo.FullName, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" || repo.DefaultBranch == "" {
+			return nil, fmt.Errorf("repository %q is missing tree lookup metadata", repo.FullName)
+		}
+		result[index].TestingCheckAttempted = true
+		tree, _, err := c.client.Git.GetTree(ctx, parts[0], parts[1], repo.DefaultBranch, true)
+		if err != nil {
+			return nil, fmt.Errorf("inspect test artifacts for %s: %w", repo.FullName, err)
+		}
+		if tree == nil {
+			return nil, fmt.Errorf("inspect test artifacts for %s: GitHub returned an empty tree", repo.FullName)
+		}
+		artifacts := testingArtifactPaths(tree)
+		result[index].TestingArtifacts = artifacts
+		switch {
+		case len(artifacts) > 0:
+			result[index].TestingStatus = TestingArtifactsVerifiedPresent
+		case tree.GetTruncated():
+			result[index].TestingStatus = TestingArtifactsUnverified
+		default:
+			result[index].TestingStatus = TestingArtifactsVerifiedAbsent
+		}
+	}
+	return result, nil
+}
+
+func testingArtifactPaths(tree *gh.Tree) []string {
+	const maxArtifactsPerRepository = 8
+	seen := make(map[string]struct{})
+	artifacts := make([]string, 0, maxArtifactsPerRepository)
+	add := func(path string) {
+		if len(artifacts) >= maxArtifactsPerRepository {
+			return
+		}
+		if _, exists := seen[path]; exists {
+			return
+		}
+		seen[path] = struct{}{}
+		artifacts = append(artifacts, path)
+	}
+	for _, entry := range tree.Entries {
+		path := entry.GetPath()
+		lowerPath := strings.ToLower(path)
+		base := strings.ToLower(path[strings.LastIndex(path, "/")+1:])
+		segments := strings.Split(lowerPath, "/")
+		for _, segment := range segments {
+			if entry.GetType() == "tree" && (segment == "test" || segment == "tests" || segment == "spec" || segment == "specs" || segment == "__tests__") {
+				add(path)
+				break
+			}
+		}
+		if isTestArtifactFile(base) || isTestWorkflow(lowerPath) {
+			add(path)
+		}
+	}
+	return artifacts
+}
+
+func isTestArtifactFile(name string) bool {
+	return strings.HasSuffix(name, "_test.go") ||
+		strings.HasSuffix(name, "_test.py") ||
+		strings.HasPrefix(name, "test_") && strings.HasSuffix(name, ".py") ||
+		strings.Contains(name, ".test.") ||
+		strings.Contains(name, ".spec.") ||
+		strings.HasPrefix(name, "jest.config.") ||
+		strings.HasPrefix(name, "vitest.config.") ||
+		name == "pytest.ini" ||
+		name == "tox.ini" ||
+		name == "pom.xml" ||
+		name == "go.mod" ||
+		name == "phpunit.xml" ||
+		name == ".rspec"
+}
+
+func isTestWorkflow(path string) bool {
+	if !strings.HasPrefix(path, ".github/workflows/") {
+		return false
+	}
+	name := strings.ToLower(path[strings.LastIndex(path, "/")+1:])
+	if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		return false
+	}
+	return strings.Contains(name, "test") || strings.Contains(name, "ci")
 }
 
 func repositoryListOptions() *gh.RepositoryListByUserOptions {
@@ -286,6 +475,7 @@ func (c *Client) VerifyCandidateReadmes(ctx context.Context, repos []Repository,
 			continue
 		}
 
+		result[idx].ReadmeCheckAttempted = true
 		present, err := c.CheckReadmePresence(ctx, owner, repoName)
 		if err != nil {
 			result[idx].ReadmeStatus = ReadmeStatusUnverified
@@ -390,6 +580,7 @@ func (c *Client) VerifyCandidateReleases(ctx context.Context, repos []Repository
 			continue
 		}
 
+		result[idx].ReleaseCheckAttempted = true
 		present, count, err := c.CheckReleasePresence(ctx, owner, repoName)
 		if err != nil {
 			result[idx].ReleaseStatus = ReleaseStatusUnverified
@@ -424,6 +615,7 @@ func normalizeRepository(item *gh.Repository) Repository {
 		Watchers:      item.GetWatchersCount(),
 		OpenIssues:    item.GetOpenIssuesCount(),
 		Language:      item.GetLanguage(),
+		TestingStatus: TestingArtifactsUnverified,
 		Topics:        item.Topics,
 		CreatedAt:     item.GetCreatedAt().Time,
 		UpdatedAt:     item.GetUpdatedAt().Time,
@@ -432,19 +624,18 @@ func normalizeRepository(item *gh.Repository) Repository {
 		Archived:      item.GetArchived(),
 		Fork:          item.GetFork(),
 		Visibility:    item.GetVisibility(),
+		HasPages:      item.GetHasPages(),
+		HasWiki:       item.GetHasWiki(),
 	}
 	if item.GetLicense() != nil {
 		repo.License = item.GetLicense().GetName()
 		repo.HasLicense = true
 	}
-	description := strings.ToLower(repo.Description)
-	homepage := strings.ToLower(repo.Homepage)
 	repo.ReadmeStatus = ReadmeStatusUnverified
 	repo.HasReadme = false
 	repo.ReleaseStatus = ReleaseStatusUnverified
 	repo.ReleaseCount = 0
 	repo.HasReleases = false
-	repo.HasDocs = strings.Contains(description, "docs") || strings.Contains(homepage, "docs") || strings.Contains(strings.ToLower(repo.Name), "docs")
+	repo.HasDocs = repo.HasPages || repo.HasWiki || repo.HasLicense
 	return repo
 }
-
