@@ -32,6 +32,7 @@ type Signal struct {
 	Value          float64            `json:"value"`
 	Metric         map[string]float64 `json:"metric"`
 	Evidence       []string           `json:"evidence"`
+	Repositories   []string           `json:"repositories,omitempty"`
 	Limitations    []string           `json:"limitations"`
 	Explanation    string             `json:"explanation"`
 }
@@ -46,6 +47,8 @@ type Analysis struct {
 	Metrics              map[string]interface{} `json:"metrics"`
 	Summary              string                 `json:"summary"`
 	LanguageDistribution []LanguageBucket       `json:"language_distribution"`
+	LanguageBasis        string                 `json:"language_distribution_basis"`
+	LanguageSampleSize   int                    `json:"language_repositories_sampled"`
 	Activity             ActivityMetrics        `json:"activity"`
 	Signals              []Signal               `json:"signals"`
 	FeaturedProjects     []FeaturedProject      `json:"featured_projects"`
@@ -61,23 +64,26 @@ func NewEngine() *Engine { return &Engine{} }
 
 func (e *Engine) Analyze(profile gh.UserProfile, repos []gh.Repository) Analysis {
 	metrics := map[string]interface{}{
-		"total_repositories":    len(repos),
-		"original_repositories": countOriginal(repos),
-		"forked_repositories":   countForked(repos),
-		"archived_repositories": countArchived(repos),
-		"total_stars":           sum(repos, func(r gh.Repository) int { return r.Stars }),
-		"total_forks":           sum(repos, func(r gh.Repository) int { return r.Forks }),
-		"total_open_issues":     sum(repos, func(r gh.Repository) int { return r.OpenIssues }),
+		"total_repositories":        len(repos),
+		"original_repositories":     countOriginal(repos),
+		"forked_repositories":       countForked(repos),
+		"archived_repositories":     countArchived(repos),
+		"total_stars":               sum(repos, func(r gh.Repository) int { return r.Stars }),
+		"total_forks":               sum(repos, func(r gh.Repository) int { return r.Forks }),
+		"total_open_issues_and_prs": sum(repos, func(r gh.Repository) int { return r.OpenIssues }),
 	}
 	langs := buildLanguageDistribution(repos)
+	languageBasis, languageSampleSize := languageDistributionSource(repos)
 	signals := buildSignals(repos)
 	featured := selectFeatured(repos)
-	report := buildReportMarkdown(profile, repos, langs, signals, featured)
+	report := buildReportMarkdown(profile, repos, langs, languageBasis, languageSampleSize, signals, featured)
 	analysis := Analysis{
 		Profile:              profile,
 		Metrics:              metrics,
-		Summary:              buildSummary(profile, repos, langs),
+		Summary:              buildSummary(profile, repos, langs, languageBasis, languageSampleSize),
 		LanguageDistribution: langs,
+		LanguageBasis:        languageBasis,
+		LanguageSampleSize:   languageSampleSize,
 		Activity:             buildActivityMetrics(repos),
 		Signals:              signals,
 		FeaturedProjects:     featured,
@@ -89,7 +95,7 @@ func (e *Engine) Analyze(profile gh.UserProfile, repos []gh.Repository) Analysis
 	return analysis
 }
 
-func buildSummary(profile gh.UserProfile, repos []gh.Repository, langs []LanguageBucket) string {
+func buildSummary(profile gh.UserProfile, repos []gh.Repository, langs []LanguageBucket, languageBasis string, languageSampleSize int) string {
 	primary := "General-purpose full-stack activity"
 	if len(langs) > 0 {
 		primary = langs[0].Name
@@ -98,22 +104,42 @@ func buildSummary(profile gh.UserProfile, repos []gh.Repository, langs []Languag
 		return "No public repositories were returned for this profile, so repository-based engineering signals cannot be assessed."
 	}
 	maintained := countRecentlyUpdated(repos, 180)
-	return fmt.Sprintf("This GitHub profile contains %d public repositories, with the largest repository count in %s. %d repositories have update timestamps within the last 180 days. These metadata signals do not establish code quality, contribution content, or engineering competence.", len(repos), primary, maintained)
+	basisDescription := "repository frequency (a repository-count estimate, not code volume)"
+	if languageBasis == "code_bytes_sampled" {
+		basisDescription = fmt.Sprintf("code bytes sampled from %d repositories", languageSampleSize)
+	}
+	return fmt.Sprintf("This GitHub profile contains %d public repositories. The largest language share in the available distribution is %s, based on %s. %d repositories have update timestamps within the last 180 days. These metadata signals do not establish code quality, contribution content, or engineering competence.", len(repos), primary, basisDescription, maintained)
 }
 
 func buildLanguageDistribution(repos []gh.Repository) []LanguageBucket {
-	counts := map[string]int{}
+	bytesByLanguage := map[string]int{}
+	fallbackCounts := map[string]int{}
+	hasByteData := false
 	for _, repo := range repos {
+		if repo.LanguageBytes != nil {
+			hasByteData = true
+			for language, count := range repo.LanguageBytes {
+				if strings.TrimSpace(language) == "" || count <= 0 {
+					continue
+				}
+				bytesByLanguage[language] += count
+			}
+			continue
+		}
 		if strings.TrimSpace(repo.Language) == "" {
 			continue
 		}
-		counts[repo.Language]++
+		fallbackCounts[repo.Language]++
 	}
-	if len(counts) == 0 {
+	weights := bytesByLanguage
+	if !hasByteData {
+		weights = fallbackCounts
+	}
+	if len(weights) == 0 {
 		return nil
 	}
 	var buckets []LanguageBucket
-	for name, count := range counts {
+	for name, count := range weights {
 		buckets = append(buckets, LanguageBucket{Name: name, Count: count})
 	}
 	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Count > buckets[j].Count })
@@ -129,6 +155,19 @@ func buildLanguageDistribution(repos []gh.Repository) []LanguageBucket {
 		buckets[i].Percentage = float64(buckets[i].Count) / float64(total) * 100
 	}
 	return buckets
+}
+
+func languageDistributionSource(repos []gh.Repository) (string, int) {
+	sampled := 0
+	for _, repo := range repos {
+		if repo.LanguageBytes != nil {
+			sampled++
+		}
+	}
+	if sampled > 0 {
+		return "code_bytes_sampled", sampled
+	}
+	return "repository_frequency_fallback", 0
 }
 
 func buildActivityMetrics(repos []gh.Repository) ActivityMetrics {
@@ -155,6 +194,14 @@ func buildSignals(repos []gh.Repository) []Signal {
 func computeCodeEvolution(repos []gh.Repository) Signal {
 	updated90 := countRecentlyUpdated(repos, 90)
 	updated180 := countRecentlyUpdated(repos, 180)
+	var evidenceRepositories []string
+	for _, repo := range repos {
+		if repo.UpdatedAt.After(time.Now().AddDate(0, 0, -180)) || repo.PushedAt.After(time.Now().AddDate(0, 0, -180)) {
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
+		}
+	}
 	level := "Insufficient data"
 	confidence := "Low"
 	evidence := []string{"No recent repository update signals detected."}
@@ -168,15 +215,24 @@ func computeCodeEvolution(repos []gh.Repository) Signal {
 			evidence = []string{fmt.Sprintf("%d repositories show recent activity in the last 90 days.", updated90)}
 		}
 	}
-	return Signal{Name: "Code Evolution", Level: level, Classification: level, Confidence: confidence, Weight: 25, Value: float64(updated90), Metric: map[string]float64{"repositories_updated_90d": float64(updated90), "repositories_updated_180d": float64(updated180), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"Uses repository update and push timestamps only; commit history and code changes were not inspected.", "Timestamp recency does not establish contribution volume or code quality."}, Explanation: "Code evolution is inferred from repository update timestamps, not from a definitive measure of technical skill."}
+	return Signal{Name: "Code Evolution", Level: level, Classification: level, Confidence: confidence, Weight: 25, Value: float64(updated90), Metric: map[string]float64{"repositories_updated_90d": float64(updated90), "repositories_updated_180d": float64(updated180), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"Tracks recent push and repository update timestamps. Commit volume, diff size, and branch activity are not collected in this REST collection.", "A repository metadata edit can update timestamps without a corresponding code change; recency does not establish contribution volume or code quality."}, Explanation: "This signal reports repository timestamp recency, not a direct measure of code evolution or technical skill."}
 }
 
 func computeMaintenance(repos []gh.Repository) Signal {
 	active := countRecentlyUpdated(repos, 180)
 	archived := countArchived(repos)
 	level := "Limited"
+	classification := ""
 	confidence := "Medium"
 	evidence := []string{"Repository maintenance indicators are limited."}
+	var evidenceRepositories []string
+	for _, repo := range repos {
+		if repo.Archived || repo.UpdatedAt.After(time.Now().AddDate(0, 0, -180)) || repo.PushedAt.After(time.Now().AddDate(0, 0, -180)) {
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
+		}
+	}
 	if active > 0 {
 		level = "Strong"
 		confidence = "Medium"
@@ -185,52 +241,106 @@ func computeMaintenance(repos []gh.Repository) Signal {
 			level = "Moderate"
 			evidence = []string{fmt.Sprintf("%d repositories are archived, while %d repositories remain actively maintained.", archived, active)}
 		}
+	} else if archived > 0 {
+		classification = "Archived / Completed"
+		evidence = []string{fmt.Sprintf("%d repositories are archived; inactivity alone is not treated as poor maintenance.", archived)}
+	} else if len(repos) == 0 {
+		level = "Insufficient data"
+		classification = level
+		confidence = "Low"
+		evidence = []string{"No repositories were available to assess maintenance timestamps."}
 	}
-	return Signal{Name: "Maintenance", Level: level, Classification: level, Confidence: confidence, Weight: 20, Value: float64(active), Metric: map[string]float64{"repositories_updated_180d": float64(active), "repositories_archived": float64(archived), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"Uses update timestamps and archived flags only.", "Issue handling, commit contents, and maintenance quality were not inspected."}, Explanation: "Maintenance reflects timestamp recency and archived lifecycle metadata only."}
+	if classification == "" {
+		classification = level
+	}
+	return Signal{Name: "Maintenance", Level: level, Classification: classification, Confidence: confidence, Weight: 20, Value: float64(active), Metric: map[string]float64{"repositories_updated_180d": float64(active), "repositories_archived": float64(archived), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"Uses update timestamps and archived flags only; inactivity is not evidence of poor engineering or project quality.", "Issue handling, commit contents, and maintenance quality were not inspected."}, Explanation: "Maintenance reports repository activity and archived lifecycle metadata; archived repositories are treated as potentially completed projects."}
 }
 
 func computeTestingEvidence(repos []gh.Repository) Signal {
-	count := 0
-	evidence := []string{"Repository-name heuristics found no test/spec markers; repository contents and CI workflows were not inspected."}
+	artifactRepositories := 0
+	inspectedRepositories := 0
+	var evidenceRepositories []string
+	var observedArtifacts []string
 	for _, repo := range repos {
-		if hasTestingSignals(repo) {
-			count++
+		if repo.TestingStatus == gh.TestingArtifactsUnverified || repo.TestingStatus == "" {
+			continue
+		}
+		inspectedRepositories++
+		if repo.TestingStatus == gh.TestingArtifactsVerifiedPresent && len(repo.TestingArtifacts) > 0 {
+			artifactRepositories++
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+				for _, artifact := range repo.TestingArtifacts {
+					if len(observedArtifacts) == 3 {
+						break
+					}
+					observedArtifacts = append(observedArtifacts, fmt.Sprintf("%s: %s", identifier, artifact))
+				}
+			}
 		}
 	}
-	if count > 0 {
-		evidence = []string{fmt.Sprintf("Repository-name heuristics found test/spec markers in %d repositories; test files and CI workflows were not inspected.", count)}
-	}
-	level := "Limited"
-	confidence := "Medium"
-	if count >= 3 {
-		level = "Strong"
-		confidence = "Medium"
-	}
-	if count > 0 && count < 3 {
+	level := "Insufficient data"
+	confidence := "Low"
+	evidence := []string{"Test artifact metadata was not collected for the analyzed repositories."}
+	if artifactRepositories > 0 {
 		level = "Moderate"
 		confidence = "Medium"
+		evidence = []string{fmt.Sprintf("Observable test files, test directories, or CI configuration were found in %d inspected repositories.", artifactRepositories)}
+		evidence = append(evidence, observedArtifacts...)
+		if artifactRepositories >= 3 {
+			level = "Strong"
+		}
+	} else if inspectedRepositories > 0 {
+		level = "Limited"
+		confidence = "Medium"
+		evidence = []string{fmt.Sprintf("No supported test artifacts were found in %d inspected repositories.", inspectedRepositories)}
 	}
-	return Signal{Name: "Testing Evidence", Level: level, Classification: level, Confidence: confidence, Weight: 20, Value: float64(count), Metric: map[string]float64{"repositories_with_test_name_markers": float64(count), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"Uses repository-name heuristics only.", "Test files, test directories, CI workflows, test quality, and correctness were not inspected."}, Explanation: "Repository-name markers are a weak testing hint, not verified test artifacts."}
+	return Signal{Name: "Testing Evidence", Level: level, Classification: level, Confidence: confidence, Weight: 20, Value: float64(artifactRepositories), Metric: map[string]float64{"repositories_with_test_artifacts": float64(artifactRepositories), "repositories_test_artifacts_inspected": float64(inspectedRepositories), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"Observed test directory structures and CI configuration; test coverage percentages and assertion rigor were not evaluated.", fmt.Sprintf("Test artifact trees were inspected for up to 5 original repositories; %d repositories remain unverified.", len(repos)-inspectedRepositories)}, Explanation: "This signal records visible test-related files, directories, and CI workflow names; it does not evaluate test quality or execution."}
 }
 
 func computeCollaboration(repos []gh.Repository) Signal {
-	forkCount := countForked(repos)
-	issueCount := sum(repos, func(r gh.Repository) int { return r.OpenIssues })
+	personalForks := countForked(repos)
+	incomingForks := 0
+	originalReposWithIncomingForks := 0
+	issueAndPRCount := 0
+	var evidenceRepositories []string
+	for _, repo := range repos {
+		if repo.Fork {
+			continue
+		}
+		incomingForks += repo.Forks
+		issueAndPRCount += repo.OpenIssues
+		if repo.Forks > 0 {
+			originalReposWithIncomingForks++
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
+		}
+		if repo.OpenIssues > 0 && repo.Forks == 0 {
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
+		}
+	}
 	level := "Limited"
 	confidence := "Low"
-	evidence := []string{"No strong collaboration signal available from the public metadata."}
-	if forkCount > 0 || issueCount > 0 {
+	evidence := []string{"No multi-person collaboration indicators were observed in the available repository metadata."}
+	if incomingForks >= 2 || issueAndPRCount > 0 {
 		level = "Moderate"
 		confidence = "Medium"
-		evidence = []string{fmt.Sprintf("Visible collaboration indicators include %d forked repositories and %d open issues across the public portfolio.", forkCount, issueCount)}
+		evidence = []string{fmt.Sprintf("Original repositories show %d incoming forks and %d open issues and pull requests.", incomingForks, issueAndPRCount)}
+	} else if personalForks > 0 || incomingForks > 0 {
+		evidence = []string{fmt.Sprintf("%d personal forks and %d incoming forks were observed; a single fork alone is not treated as collaboration evidence.", personalForks, incomingForks)}
 	}
-	return Signal{Name: "Collaboration", Level: level, Classification: level, Confidence: confidence, Weight: 15, Value: float64(forkCount), Metric: map[string]float64{"forked_repositories": float64(forkCount), "open_issues": float64(issueCount), "repositories_total": float64(len(repos))}, Evidence: evidence, Limitations: []string{"Uses fork and open-issue counts only.", "Contributors, Pull Requests, discussion quality, and individual behavior were not inspected."}, Explanation: "Fork and open-issue metadata are partial collaboration indicators."}
+	return Signal{Name: "Collaboration", Level: level, Classification: level, Confidence: confidence, Weight: 15, Value: float64(incomingForks), Metric: map[string]float64{"personal_forked_repositories": float64(personalForks), "incoming_forks_on_original_repositories": float64(incomingForks), "original_repositories_with_incoming_forks": float64(originalReposWithIncomingForks), "open_issues_and_prs": float64(issueAndPRCount), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"Open issue counts from the GitHub repository list combine issues and pull requests.", "Incoming forks indicate external copying, not necessarily direct collaboration; contributors and external pull requests to non-owned repositories require additional API or GraphQL collection."}, Explanation: "Collaboration is inferred conservatively from incoming forks and combined open issue/pull-request counts on original repositories; personal forks are not counted as collaboration."}
 }
 
 func computeDocumentation(repos []gh.Repository) Signal {
 	count := 0
 	verifiedReadmeCount := 0
 	unverifiedReadmeCount := 0
+	pagesCount, wikiCount, licenseCount := 0, 0, 0
+	var evidenceRepositories []string
 	for _, repo := range repos {
 		hasVerifiedReadme := repo.ReadmeStatus == gh.ReadmeStatusVerifiedPresent || repo.HasReadme
 		if hasVerifiedReadme {
@@ -238,8 +348,20 @@ func computeDocumentation(repos []gh.Repository) Signal {
 		} else if repo.ReadmeStatus == gh.ReadmeStatusUnverified || repo.ReadmeStatus == "" {
 			unverifiedReadmeCount++
 		}
-		if hasVerifiedReadme || repo.HasLicense || repo.HasDocs {
+		if repo.HasPages {
+			pagesCount++
+		}
+		if repo.HasWiki {
+			wikiCount++
+		}
+		if repo.HasLicense {
+			licenseCount++
+		}
+		if hasVerifiedReadme || repo.HasPages || repo.HasWiki || repo.HasLicense {
 			count++
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
 		}
 	}
 	level := "Limited"
@@ -250,16 +372,16 @@ func computeDocumentation(repos []gh.Repository) Signal {
 		if verifiedReadmeCount > 0 {
 			evidence = append(evidence, fmt.Sprintf("%d repositories have verified README documentation.", verifiedReadmeCount))
 		}
-		evidence = append(evidence, fmt.Sprintf("%d repositories show documentation-related metadata hints such as wiki flags, docs markers, or license metadata.", count))
-		if count >= len(repos)/2 {
+		evidence = append(evidence, fmt.Sprintf("%d repositories have verified documentation artifacts (Pages: %d, Wiki: %d, LICENSE: %d).", count, pagesCount, wikiCount, licenseCount))
+		if count*2 >= len(repos) {
 			level = "Strong"
 		}
 	} else {
-		evidence = []string{"Few repositories show clear documentation patterns."}
+		evidence = []string{"No verified README, GitHub Pages, Wiki, or LICENSE artifacts were observed."}
 	}
 
 	limitations := []string{
-		"Uses license/wiki and name/description metadata hints.",
+		"Documentation is based only on verified README presence, GitHub Pages/Wiki metadata, and LICENSE metadata.",
 	}
 	if unverifiedReadmeCount > 0 {
 		limitations = append(limitations, fmt.Sprintf("README presence was unverified for %d repositories due to rate-limit bounding.", unverifiedReadmeCount))
@@ -267,10 +389,13 @@ func computeDocumentation(repos []gh.Repository) Signal {
 	limitations = append(limitations, "README content, structure, and documentation quality were not fetched or inspected.")
 
 	metrics := map[string]float64{
-		"repositories_with_documentation_metadata_hints": float64(count),
-		"repositories_with_verified_readme":              float64(verifiedReadmeCount),
-		"repositories_with_unverified_readme":            float64(unverifiedReadmeCount),
-		"repositories_total":                             float64(len(repos)),
+		"repositories_with_documentation_artifacts": float64(count),
+		"repositories_with_verified_readme":         float64(verifiedReadmeCount),
+		"repositories_with_unverified_readme":       float64(unverifiedReadmeCount),
+		"repositories_with_github_pages":            float64(pagesCount),
+		"repositories_with_github_wiki":             float64(wikiCount),
+		"repositories_with_license":                 float64(licenseCount),
+		"repositories_total":                        float64(len(repos)),
 	}
 
 	return Signal{
@@ -282,8 +407,9 @@ func computeDocumentation(repos []gh.Repository) Signal {
 		Value:          float64(count),
 		Metric:         metrics,
 		Evidence:       evidence,
+		Repositories:   evidenceRepositories,
 		Limitations:    limitations,
-		Explanation:    "Documentation classification incorporates verified README presence and repository metadata hints.",
+		Explanation:    "Documentation classification uses only verified README presence and GitHub Pages, Wiki, and LICENSE artifacts.",
 	}
 }
 
@@ -292,6 +418,7 @@ func computeReleaseActivity(repos []gh.Repository) Signal {
 	verifiedAbsentCount := 0
 	unverifiedCount := 0
 	var releaseRepos []string
+	var releaseReferences []string
 
 	for _, repo := range repos {
 		if repo.ReleaseStatus == gh.ReleaseStatusVerifiedPresent || repo.HasReleases {
@@ -302,6 +429,9 @@ func computeReleaseActivity(repos []gh.Repository) Signal {
 			}
 			if name != "" {
 				releaseRepos = append(releaseRepos, name)
+			}
+			if identifier := repositoryIdentifier(repo); identifier != "" {
+				releaseReferences = append(releaseReferences, identifier)
 			}
 		} else if repo.ReleaseStatus == gh.ReleaseStatusVerifiedAbsent {
 			verifiedAbsentCount++
@@ -339,10 +469,10 @@ func computeReleaseActivity(repos []gh.Repository) Signal {
 	limitations = append(limitations, "Assets, changelogs, and deployment verification pipelines were not evaluated.")
 
 	metrics := map[string]float64{
-		"repositories_with_verified_releases": float64(verifiedPresentCount),
-		"repositories_with_verified_absent":   float64(verifiedAbsentCount),
+		"repositories_with_verified_releases":  float64(verifiedPresentCount),
+		"repositories_with_verified_absent":    float64(verifiedAbsentCount),
 		"repositories_with_unverified_release": float64(unverifiedCount),
-		"repositories_total":                  float64(len(repos)),
+		"repositories_total":                   float64(len(repos)),
 	}
 
 	return Signal{
@@ -354,21 +484,17 @@ func computeReleaseActivity(repos []gh.Repository) Signal {
 		Value:          float64(verifiedPresentCount),
 		Metric:         metrics,
 		Evidence:       evidence,
+		Repositories:   releaseReferences,
 		Limitations:    limitations,
 		Explanation:    "Release activity evaluates published GitHub releases on active original repositories.",
 	}
 }
 
-func hasTestingSignals(repo gh.Repository) bool {
-	name := strings.ToLower(repo.Name)
-	if strings.Contains(name, "test") || strings.Contains(name, "spec") || strings.Contains(name, "__tests__") {
-		return true
+func repositoryIdentifier(repo gh.Repository) string {
+	if repo.FullName != "" {
+		return repo.FullName
 	}
-	full := strings.ToLower(repo.FullName)
-	if strings.Contains(full, "test") || strings.Contains(full, "spec") {
-		return true
-	}
-	return false
+	return repo.Name
 }
 
 func countOriginal(repos []gh.Repository) int {
@@ -539,17 +665,25 @@ func buildPortfolioMarkdown(profile gh.UserProfile, featured []FeaturedProject, 
 	return b.String()
 }
 
-func buildReportMarkdown(profile gh.UserProfile, repos []gh.Repository, langs []LanguageBucket, signals []Signal, featured []FeaturedProject) string {
+func buildReportMarkdown(profile gh.UserProfile, repos []gh.Repository, langs []LanguageBucket, languageBasis string, languageSampleSize int, signals []Signal, featured []FeaturedProject) string {
 	var b strings.Builder
 	b.WriteString("# GitIntel Report\n\n")
 	b.WriteString(fmt.Sprintf("## Profile\n- User: %s\n- Public repositories: %d\n- Followers: %d\n- Following: %d\n\n", profile.Username, len(repos), profile.Followers, profile.Following))
 	b.WriteString("## Repository language distribution\n")
+	if languageBasis == "code_bytes_sampled" {
+		b.WriteString(fmt.Sprintf("Based on code bytes from %d sampled repositories.\n", languageSampleSize))
+	} else {
+		b.WriteString("Based on repository frequency; this is an estimate, not a code-volume distribution.\n")
+	}
 	for _, lang := range langs {
 		b.WriteString(fmt.Sprintf("- %s: %.1f%%\n", lang.Name, lang.Percentage))
 	}
 	b.WriteString("\n## Engineering Signals\n")
 	for _, signal := range signals {
 		b.WriteString(fmt.Sprintf("- %s: %s (%s confidence)\n", signal.Name, signal.Classification, signal.Confidence))
+		for _, repository := range signal.Repositories {
+			b.WriteString(fmt.Sprintf("  - Supporting repository: %s\n", repository))
+		}
 		metricNames := make([]string, 0, len(signal.Metric))
 		for name := range signal.Metric {
 			metricNames = append(metricNames, name)

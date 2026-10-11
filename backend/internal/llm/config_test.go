@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -10,6 +11,68 @@ import (
 	"testing"
 	"time"
 )
+
+func TestCredentialInvalidationPersistsAcrossInterpretationRequests(t *testing.T) {
+	t.Setenv("LLM_ANALYSIS_ENABLED", "true")
+	t.Setenv("LLM_PROVIDER", "huggingface")
+	t.Setenv("LLM_PROVIDER_STATUS", "")
+	t.Setenv("HF_API_KEYS", "rejected-key")
+	t.Setenv("HF_API_KEY", "")
+	t.Setenv("HF_MODEL", "test-model")
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid token"}}`))
+	}))
+	defer server.Close()
+	t.Setenv("HF_BASE_URL", server.URL)
+
+	cfg, err := LoadConfigFromEnv()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	for request := 0; request < 2; request++ {
+		_, err = GenerateInterpretationWithManager(context.Background(), cfg, EvidenceContext{}, "en", manager)
+		if !IsInvalidCredential(err) {
+			t.Fatalf("request %d: expected invalid credential error, got %v", request+1, err)
+		}
+	}
+	if requests != 1 {
+		t.Fatalf("expected invalid credential to be attempted only once, provider requests=%d", requests)
+	}
+}
+
+func TestGenerateInterpretationDoesNotRotateCredentialsOnRateLimit(t *testing.T) {
+	t.Setenv("LLM_ANALYSIS_ENABLED", "true")
+	t.Setenv("LLM_PROVIDER", "huggingface")
+	t.Setenv("LLM_PROVIDER_STATUS", "")
+	t.Setenv("HF_API_KEYS", "first-key,second-key")
+	t.Setenv("HF_API_KEY", "")
+	t.Setenv("HF_MODEL", "test-model")
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"rate limit exceeded"}}`))
+	}))
+	defer server.Close()
+	t.Setenv("HF_BASE_URL", server.URL)
+
+	cfg, err := LoadConfigFromEnv()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	_, err = GenerateInterpretationWithManager(context.Background(), cfg, EvidenceContext{}, "en", manager)
+	if !IsRateLimited(err) {
+		t.Fatalf("expected rate-limit classification, got %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("rate limit must stop after one request without rotating credentials, got %d requests", requests)
+	}
+}
 
 func TestCredentialManagerMaskingAndSelection(t *testing.T) {
 	t.Setenv("HF_API_KEYS", "hf_abc123,hf_def456")

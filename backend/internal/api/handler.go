@@ -16,13 +16,23 @@ import (
 )
 
 type Handler struct {
-	cache  *cache.Cache
-	engine *analytics.Engine
-	client *gh.Client
+	cache       *cache.Cache
+	engine      *analytics.Engine
+	client      *gh.Client
+	credentials *llm.LLMCredentialManager
 }
 
 func NewHandler(cacheStore *cache.Cache, engine *analytics.Engine) *Handler {
-	return &Handler{cache: cacheStore, engine: engine, client: gh.NewClientFromToken("")}
+	return NewHandlerWithCredentials(cacheStore, engine, nil)
+}
+
+func NewHandlerWithCredentials(cacheStore *cache.Cache, engine *analytics.Engine, credentials *llm.LLMCredentialManager) *Handler {
+	if credentials == nil {
+		cfg, _ := llm.LoadConfigFromEnv()
+		credentials = llm.NewCredentialManager(llm.CredentialEnvName(cfg.Provider))
+		credentials.Load()
+	}
+	return &Handler{cache: cacheStore, engine: engine, client: gh.NewClientFromToken(""), credentials: credentials}
 }
 
 type response struct {
@@ -43,17 +53,39 @@ type analyzeRequest struct {
 }
 
 type analyzeResult struct {
-	Profile   gh.UserProfile      `json:"profile"`
-	Repos     []gh.Repository     `json:"repositories"`
-	Analysis  analytics.Analysis  `json:"analysis"`
-	Evidence  llm.EvidenceContext `json:"evidence"`
-	RateLimit gh.RateLimitInfo    `json:"rate_limit"`
+	Profile            gh.UserProfile      `json:"profile"`
+	Repos              []gh.Repository     `json:"repositories"`
+	Analysis           analytics.Analysis  `json:"analysis"`
+	Evidence           llm.EvidenceContext `json:"evidence"`
+	RateLimit          gh.RateLimitInfo    `json:"rate_limit"`
+	CollectionWarnings []string            `json:"collection_warnings,omitempty"`
 }
 
 type githubDataClient interface {
 	GetProfile(context.Context, string) (*gh.UserProfile, error)
 	GetRepositories(context.Context, string) ([]gh.Repository, error)
 	RateLimit(context.Context) (gh.RateLimitInfo, error)
+}
+
+type githubOptionalCheckLimits struct {
+	readmes   int
+	releases  int
+	testing   int
+	languages int
+}
+
+const githubCoreAndReserveBudget = 10
+
+func optionalCheckLimits(remaining int) githubOptionalCheckLimits {
+	budget := max(remaining-githubCoreAndReserveBudget, 0)
+	limits := githubOptionalCheckLimits{readmes: min(budget, 5)}
+	budget -= limits.readmes
+	limits.releases = min(budget, 5)
+	budget -= limits.releases
+	limits.testing = min(budget, 5)
+	budget -= limits.testing
+	limits.languages = min(budget, 10)
+	return limits
 }
 
 func fetchGitHubData(ctx context.Context, client githubDataClient, username string, includeRateLimit bool) (*gh.UserProfile, []gh.Repository, gh.RateLimitInfo, error, error) {
@@ -92,7 +124,9 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "Username is required.")
 		return
 	}
-	profile, err := h.loadProfile(username, "")
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	profile, err := h.client.GetProfile(ctx, username)
 	if err != nil {
 		writeError(w, githubErrorStatus(err), "GITHUB_PROFILE_ERROR", formatError(err))
 		return
@@ -106,7 +140,9 @@ func (h *Handler) Repositories(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "Username is required.")
 		return
 	}
-	repos, err := h.loadRepos(username, "")
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	repos, err := h.client.GetRepositories(ctx, username)
 	if err != nil {
 		writeError(w, githubErrorStatus(err), "GITHUB_REPO_ERROR", formatError(err))
 		return
@@ -130,7 +166,9 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, repos, limit, profileErr, reposErr := fetchGitHubData(r.Context(), client, username, true)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	profile, repos, limit, profileErr, reposErr := fetchGitHubData(ctx, client, username, true)
 	if profileErr != nil {
 		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
@@ -139,13 +177,40 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
 		return
 	}
-	if limit.Remaining >= 5 && len(repos) > 0 {
-		repos = client.VerifyCandidateReadmes(r.Context(), repos, 5)
-		repos = client.VerifyCandidateReleases(r.Context(), repos, 5)
+	var collectionWarnings []string
+	checkLimits := optionalCheckLimits(limit.Remaining)
+	if len(repos) > 0 && checkLimits.readmes > 0 {
+		repos = client.VerifyCandidateReadmes(ctx, repos, checkLimits.readmes)
+	}
+	if len(repos) > 0 && checkLimits.releases > 0 {
+		repos = client.VerifyCandidateReleases(ctx, repos, checkLimits.releases)
+	}
+	if len(repos) > 0 && checkLimits.testing > 0 {
+		testingRepos, testingErr := client.VerifyTestingArtifacts(ctx, repos, checkLimits.testing)
+		if testingErr != nil {
+			collectionWarnings = append(collectionWarnings, "Testing and CI artifact data could not be verified; those repositories remain unverified.")
+		} else {
+			repos = testingRepos
+		}
+	}
+	if len(repos) > 0 && checkLimits.languages > 0 {
+		languageRepos, languageErr := client.PopulateLanguageBreakdown(ctx, repos, checkLimits.languages)
+		if languageErr != nil {
+			collectionWarnings = append(collectionWarnings, "Detailed language byte data could not be fetched; repository language counts are used as fallback.")
+		} else {
+			repos = languageRepos
+		}
+	}
+	if client.RepositoriesTruncated() {
+		collectionWarnings = append(collectionWarnings, "Repository collection was capped at 300 repositories.")
+	}
+	if limit.Remaining <= githubCoreAndReserveBudget {
+		collectionWarnings = append(collectionWarnings, "Optional README, release, testing, and language checks were skipped to preserve the GitHub API quota.")
 	}
 	analysis := h.engine.Analyze(*profile, repos)
 	evidence := llm.BuildLLMContext(*profile, repos, analysis)
-	result := analyzeResult{Profile: *profile, Repos: repos, Analysis: analysis, Evidence: evidence, RateLimit: limit}
+	evidence.Limitations = append(evidence.Limitations, collectionWarnings...)
+	result := analyzeResult{Profile: *profile, Repos: repos, Analysis: analysis, Evidence: evidence, RateLimit: limit, CollectionWarnings: collectionWarnings}
 	cacheKey := "analysis:" + username
 	h.cache.Set(cacheKey, result)
 	jsonResponse(w, http.StatusOK, response{Success: true, Data: result})
@@ -188,7 +253,7 @@ func (h *Handler) Interpret(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_LLM_CONFIG", "The LLM provider configuration is invalid.")
 		return
 	}
-	interpreted, err := llm.GenerateInterpretation(r.Context(), cfg, result.Evidence, language)
+	interpreted, err := llm.GenerateInterpretationWithManager(r.Context(), cfg, result.Evidence, language, h.credentials)
 	if err != nil {
 		writeInterpretationError(w, err)
 		return
@@ -262,7 +327,9 @@ func (h *Handler) Resume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, repos, _, profileErr, reposErr := fetchGitHubData(r.Context(), client, req.Username, false)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	profile, repos, _, profileErr, reposErr := fetchGitHubData(ctx, client, req.Username, false)
 	if profileErr != nil {
 		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
@@ -286,7 +353,9 @@ func (h *Handler) Portfolio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
-	profile, repos, _, profileErr, reposErr := fetchGitHubData(r.Context(), client, req.Username, false)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	profile, repos, _, profileErr, reposErr := fetchGitHubData(ctx, client, req.Username, false)
 	if profileErr != nil {
 		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
 		return
@@ -297,24 +366,6 @@ func (h *Handler) Portfolio(w http.ResponseWriter, r *http.Request) {
 	}
 	analysis := h.engine.Analyze(*profile, repos)
 	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": analysis.PortfolioMarkdown}})
-}
-
-func (h *Handler) loadProfile(username, token string) (*gh.UserProfile, error) {
-	client := gh.NewClientFromToken(token)
-	ctx, cancel := contextWithTimeout(15 * time.Second)
-	defer cancel()
-	return client.GetProfile(ctx, username)
-}
-
-func (h *Handler) loadRepos(username, token string) ([]gh.Repository, error) {
-	client := gh.NewClientFromToken(token)
-	ctx, cancel := contextWithTimeout(15 * time.Second)
-	defer cancel()
-	return client.GetRepositories(ctx, username)
-}
-
-func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), d)
 }
 
 func formatError(err error) string {

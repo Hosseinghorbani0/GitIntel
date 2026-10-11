@@ -45,13 +45,20 @@ func AnalysisReportsEnabled() bool {
 }
 
 func GenerateInterpretation(ctx context.Context, cfg Config, evidence EvidenceContext, language string) (*Response, error) {
+	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	return GenerateInterpretationWithManager(ctx, cfg, evidence, language, manager)
+}
+
+func GenerateInterpretationWithManager(ctx context.Context, cfg Config, evidence EvidenceContext, language string, manager *LLMCredentialManager) (*Response, error) {
 	if !AnalysisReportsEnabled() {
 		return nil, ErrAnalysisDisabled
 	}
 	if ProviderAvailabilityStatus(cfg) == "payment_required" {
 		return nil, paymentRequiredProviderError()
 	}
-	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	if manager == nil {
+		return nil, &ProviderError{Category: ErrorInvalidCredential, Message: "Provider credential manager is unavailable"}
+	}
 	manager.Load()
 	for {
 		credential, ok := manager.SelectAvailable()

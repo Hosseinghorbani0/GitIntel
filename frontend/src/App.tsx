@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   Activity, ArrowDownUp, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronDown,
   CircleAlert, Clock3, Code2, Download, FileText, GitBranch, GitFork, Globe2, LayoutDashboard,
@@ -25,6 +25,7 @@ function App() {
   const [interpretationLoading, setInterpretationLoading] = useState(false)
   const [interpretation, setInterpretation] = useState<InterpretationResult | null>(null)
   const [interpretationError, setInterpretationError] = useState('')
+  const interpretationController = useRef<AbortController | null>(null)
   const [llmResult, setLLMResult] = useState<{ provider: string; model: string; status: string; latency_ms: number; tokens?: number; response: string; error?: string } | null>(null)
   const [llmConfig, setLLMConfig] = useState<LLMConfigStatus>({ provider: 'huggingface', model: 'Qwen/Qwen3.8-2.4T-A95B:novita', credential_status: 'not configured', provider_status: 'unverified', analysis_reports_enabled: false })
   const [llmError, setLLMError] = useState('')
@@ -73,6 +74,7 @@ function App() {
 
   const handleAnalyze = async (event?: FormEvent) => {
     event?.preventDefault()
+    interpretationController.current?.abort()
     setLoading(true)
     setError('')
     try {
@@ -91,17 +93,35 @@ function App() {
     }
   }
 
+  const handleLanguageChange = (nextLanguage: Language) => {
+    if (nextLanguage === language) return
+    interpretationController.current?.abort()
+    interpretationController.current = null
+    setInterpretationLoading(false)
+    setInterpretation(null)
+    setInterpretationError('')
+    setLanguage(nextLanguage)
+  }
+
   const handleInterpret = async () => {
     if (!data) return
+    interpretationController.current?.abort()
+    const controller = new AbortController()
+    interpretationController.current = controller
     setInterpretationLoading(true)
     setInterpretationError('')
     try {
-      setInterpretation(await interpretAnalysis(data.profile.username, language))
+      setInterpretation(await interpretAnalysis(data.profile.username, language, controller.signal))
     } catch (err) {
-      setInterpretation(null)
-      setInterpretationError(err instanceof Error ? err.message : 'LLM_PROVIDER_ERROR')
+      if (!controller.signal.aborted) {
+        setInterpretation(null)
+        setInterpretationError(err instanceof Error ? err.message : 'LLM_PROVIDER_ERROR')
+      }
     } finally {
-      setInterpretationLoading(false)
+      if (interpretationController.current === controller) {
+        interpretationController.current = null
+        setInterpretationLoading(false)
+      }
     }
   }
 
@@ -196,6 +216,12 @@ function App() {
         {signal.evidence.length > 0 ? (
           <ul className="evidence-list">{signal.evidence.slice(0, 3).map((item) => <li key={item}><bdi dir="auto">{item}</bdi></li>)}</ul>
         ) : <p className="quiet-empty">{t.insufficientEvidence}</p>}
+        {signal.repositories && signal.repositories.length > 0 && <div className="repo-tags signal-repositories"><span className="signal-repository-label">{t.supportingRepositories}</span>{signal.repositories.map((name) => {
+          const repository = data?.repositories.find((item) => item.full_name === name)
+          return repository
+            ? <a key={name} href={repository.url} target="_blank" rel="noreferrer" dir="ltr">{repository.name}</a>
+            : <span key={name} dir="ltr">{name}</span>
+        })}</div>}
         {signal.limitations.length > 0 && <details className="signal-limitations"><summary>{t.viewLimitations}</summary><p>{signal.limitations.join(' ')}</p></details>}
       </article>
     )
@@ -266,12 +292,12 @@ function App() {
         </nav>
         <div className="sidebar-spacer" />
         <div className="connection-state"><span className="connection-dot" /><span>{t.githubPublicData}</span></div>
-        <div className="sidebar-language"><Globe2 size={15} /><span>{t.language}</span><div className="language-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => setLanguage('fa')}>فا</button></div></div>
+        <div className="sidebar-language"><Globe2 size={15} /><span>{t.language}</span><div className="language-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => handleLanguageChange('en')}>EN</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => handleLanguageChange('fa')}>فا</button></div></div>
         <div className="sidebar-user"><div className="user-avatar">GI</div><div><strong>{data?.profile.username || 'GitIntel'}</strong><span>{data ? t.localAnalysis : t.personalWorkspace}</span></div></div>
       </aside>
 
       <div className="workspace-main">
-        <header className="mobile-topbar"><button className="mobile-brand" onClick={() => setView('analyze')}><span className="brand-symbol"><span /><span /><span /></span><b>GitIntel<span className="brand-period">.</span></b></button><div className="language-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => setLanguage('fa')}>فا</button></div></header>
+        <header className="mobile-topbar"><button className="mobile-brand" onClick={() => setView('analyze')}><span className="brand-symbol"><span /><span /><span /></span><b>GitIntel<span className="brand-period">.</span></b></button><div className="language-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => handleLanguageChange('en')}>EN</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => handleLanguageChange('fa')}>فا</button></div></header>
         <header className="workspace-topbar"><div className="breadcrumb"><span>{t.workspace}</span><span>/</span><strong>{activeLabel}</strong></div><div className="topbar-context">{data ? <><span className="context-dot" /><bdi dir="ltr">{data.profile.username}</bdi><span className="context-divider" /><span>{data.repositories.length} {t.repositoriesAnalyzed}</span></> : <span>{t.evidenceWorkspace}</span>}</div></header>
         <main className="main-content">
           {error && <div className="global-error" role="alert"><div className="error-icon"><CircleAlert size={18} /></div><div><strong>{t.analysisFailed}</strong><p>{error}</p><button onClick={() => setError('')}>{t.dismiss}</button></div></div>}
@@ -307,7 +333,7 @@ function App() {
               <article className="overview-summary"><div className="summary-label"><span className="summary-mark"><Activity size={16} /></span>{t.evidenceSummary}<span className="deterministic-badge">{t.deterministic}</span></div><p>{summary || t.insufficientEvidence}</p><div className="summary-foot"><span><ShieldCheck size={14} />{t.evidenceOnly}</span><button onClick={() => setView('reports')}>{t.openReport}<ArrowUpRight size={14} /></button></div></article>
               <div className="stat-stack">
                 <div className="stat-cell"><span>{t.repositoriesAnalyzed}</span><strong>{data.repositories.length}</strong><small>{t.publicRepositoriesCount} <bdi dir="ltr">{data.profile.public_repos}</bdi></small></div>
-                <div className="stat-cell"><span>{t.languagesObserved}</span><strong>{data.analysis.language_distribution?.length ?? 0}</strong><small>{t.metadataOnly}</small></div>
+                <div className="stat-cell"><span>{t.languagesObserved}</span><strong>{data.analysis.language_distribution?.length ?? 0}</strong><small>{data.analysis.language_distribution_basis === 'code_bytes_sampled' ? `${t.codeBytesSample} · ${data.analysis.language_repositories_sampled} ${t.repositoriesSampled}` : t.repositoryFrequencyFallback}</small></div>
                 <div className="stat-cell"><span>{t.profileSince}</span><strong>{new Date(data.profile.created_at).getFullYear()}</strong><small>{t.githubAccount}</small></div>
               </div>
             </section>
@@ -317,7 +343,7 @@ function App() {
 
           {data && view === 'repositories' && <div className="view-stack">{overviewHeader}<div className="page-title"><div><span className="section-kicker">{t.repositoryIndex}</span><h1>{t.repoExplorer}</h1><p>{t.repositoryExplorerIntro}</p></div><span className="result-count">{filteredRepositories.length} / {data.repositories.length}</span></div><section className="repo-explorer"><div className="repo-toolbar"><label className="search-control"><Search size={16} /><input value={repoSearch} onChange={(event) => setRepoSearch(event.target.value)} placeholder={t.searchRepositories} aria-label={t.searchRepositories} /><kbd>/</kbd></label><label className="select-control"><ListFilter size={15} /><select value={languageFilter} onChange={(event) => setLanguageFilter(event.target.value)} aria-label={t.filterLanguage}><option value="">{t.allLanguages}</option>{repositoryLanguages.map((item) => <option key={item} value={item}>{item}</option>)}</select><ChevronDown size={14} /></label><label className="select-control"><select value={repoType} onChange={(event) => setRepoType(event.target.value)} aria-label={t.filterType}><option value="all">{t.allTypes}</option><option value="source">{t.sourceRepositories}</option><option value="forks">{t.forks}</option></select><ChevronDown size={14} /></label><label className="select-control"><ArrowDownUp size={15} /><select value={repoSort} onChange={(event) => setRepoSort(event.target.value)} aria-label={t.sortRepositories}><option value="updated">{t.sortRecentlyUpdated}</option><option value="stars">{t.sortMostStars}</option><option value="name">{t.sortName}</option></select><ChevronDown size={14} /></label><div className="layout-toggle" role="group" aria-label={t.repositoryLayout}><button aria-pressed={repoLayout === 'list'} onClick={() => setRepoLayout('list')} title={t.listView}><Menu size={16} /></button><button aria-pressed={repoLayout === 'grid'} onClick={() => setRepoLayout('grid')} title={t.gridView}><LayoutDashboard size={15} /></button></div></div>{filteredRepositories.length ? <div className={`repo-grid ${repoLayout === 'list' ? 'repo-list-layout' : ''}`}>{filteredRepositories.map(repositoryCard)}</div> : <div className="empty-inline"><Search size={19} /><strong>{t.noRepositoriesFound}</strong><span>{t.adjustRepositoryFilters}</span></div>}</section></div>}
 
-          {data && view === 'repository' && selectedRepository && <div className="view-stack">{overviewHeader}<button className="back-link" onClick={() => setView('repositories')}>← {t.backToRepositories}</button><section className="repo-detail-head"><div className="repo-icon large"><Code2 size={21} /></div><div className="repo-detail-title"><div><span className="section-kicker">{t.repositoryInspection}</span><h1 dir="ltr">{selectedRepository.full_name}</h1></div><a className="quiet-button" href={selectedRepository.url} target="_blank" rel="noreferrer">{t.viewGithub}<ArrowUpRight size={14} /></a><p>{selectedRepository.description || t.noDescription}</p><div className="repo-meta"><span>{selectedRepository.language || t.languageUnknown}</span><span><Star size={13} />{selectedRepository.stars}</span><span><GitFork size={13} />{selectedRepository.forks}</span><span>{selectedRepository.visibility}</span><span>{selectedRepository.license || t.licenseUnknown}</span></div></div></section><div className="detail-grid">{[{ title: t.activitySection, text: `${t.created} ${new Date(selectedRepository.created_at).toLocaleDateString(language === 'fa' ? 'fa-IR' : 'en-US')} · ${t.updated} ${new Date(selectedRepository.updated_at).toLocaleDateString(language === 'fa' ? 'fa-IR' : 'en-US')}`, icon: Clock3 }, { title: t.testingSection, text: t.testingNotCollected, icon: Check }, { title: t.documentationSection, text: selectedRepository.has_readme || selectedRepository.has_docs ? t.documentationObserved : t.documentationNotObserved, icon: BookOpen }, { title: t.collaborationSection, text: t.collaborationNotCollected, icon: Network }, { title: t.deliverySection, text: selectedRepository.has_releases ? t.releaseMetadataObserved : t.releaseMetadataNotObserved, icon: ArrowUpRight }, { title: t.limitations, text: t.repositoryLimitations, icon: ShieldCheck }].map(({ title, text, icon: Icon }) => <article className="detail-panel" key={title}><div className="detail-panel-title"><Icon size={16} /><h2>{title}</h2></div><p>{text}</p></article>)}</div></div>}
+          {data && view === 'repository' && selectedRepository && <div className="view-stack">{overviewHeader}<button className="back-link" onClick={() => setView('repositories')}>← {t.backToRepositories}</button><section className="repo-detail-head"><div className="repo-icon large"><Code2 size={21} /></div><div className="repo-detail-title"><div><span className="section-kicker">{t.repositoryInspection}</span><h1 dir="ltr">{selectedRepository.full_name}</h1></div><a className="quiet-button" href={selectedRepository.url} target="_blank" rel="noreferrer">{t.viewGithub}<ArrowUpRight size={14} /></a><p>{selectedRepository.description || t.noDescription}</p><div className="repo-meta"><span>{selectedRepository.language || t.languageUnknown}</span><span><Star size={13} />{selectedRepository.stars}</span><span><GitFork size={13} />{selectedRepository.forks}</span><span>{selectedRepository.visibility}</span><span>{selectedRepository.license || t.licenseUnknown}</span></div></div></section><div className="detail-grid">{[{ title: t.activitySection, text: `${t.created} ${new Date(selectedRepository.created_at).toLocaleDateString(language === 'fa' ? 'fa-IR' : 'en-US')} · ${t.updated} ${new Date(selectedRepository.updated_at).toLocaleDateString(language === 'fa' ? 'fa-IR' : 'en-US')}`, icon: Clock3 }, { title: t.testingSection, text: selectedRepository.testing_artifacts_status === 'verified_present' ? `${t.testingArtifactsObserved}: ${selectedRepository.testing_artifacts?.join(', ')}` : selectedRepository.testing_artifacts_status === 'verified_absent' ? t.testingArtifactsNotObserved : selectedRepository.testing_artifacts_check_attempted ? t.testingArtifactsUnverified : t.testingNotCollected, icon: Check }, { title: t.documentationSection, text: selectedRepository.has_readme || selectedRepository.has_docs ? t.documentationObserved : t.documentationNotObserved, icon: BookOpen }, { title: t.collaborationSection, text: t.collaborationNotCollected, icon: Network }, { title: t.deliverySection, text: selectedRepository.has_releases ? t.releaseMetadataObserved : t.releaseMetadataNotObserved, icon: ArrowUpRight }, { title: t.limitations, text: t.repositoryLimitations, icon: ShieldCheck }].map(({ title, text, icon: Icon }) => <article className="detail-panel" key={title}><div className="detail-panel-title"><Icon size={16} /><h2>{title}</h2></div><p dir="auto">{text}</p></article>)}</div></div>}
 
           {data && view === 'signals' && <div className="view-stack">{overviewHeader}<div className="page-title"><div><span className="section-kicker">{t.observableEvidence}</span><h1>{t.engineeringSignals}</h1><p>{t.signalsIntro}</p></div><span className="deterministic-badge">{t.noDeveloperScore}</span></div><div className="signal-grid signal-grid-all">{data.analysis.signals.map(renderSignal)}</div><section className="content-section attention-section"><div className="section-heading"><div><span className="section-kicker">{t.inspectWithContext}</span><h2>{t.attentionSignals}</h2><p>{t.attentionIntro}</p></div></div>{data.analysis.signals.filter((signal) => /limited|insufficient/i.test(signal.level)).length ? <div className="attention-list">{data.analysis.signals.filter((signal) => /limited|insufficient/i.test(signal.level)).map((signal) => <article className="attention-row" key={signal.name}><span className="attention-icon"><CircleAlert size={16} /></span><div><strong>{signal.name}</strong><p>{signal.explanation}</p><small>{signal.limitations.join(' ') || t.cannotConclude}</small></div><span className="signal-state">{signal.level}</span></article>)}</div> : <div className="empty-inline"><Check size={18} /><strong>{t.noAttentionSignals}</strong><span>{t.noAttentionDescription}</span></div>}</section></div>}
 
@@ -327,7 +353,7 @@ function App() {
 
           {data && view === 'portfolio' && <div className="view-stack">{overviewHeader}<div className="page-title"><div><span className="section-kicker">{t.evidenceBasedOutput}</span><h1>{t.nav.portfolio}</h1><p>{t.portfolioIntro}</p></div></div><div className="segmented-control" role="tablist" aria-label={t.portfolioOutput}><button role="tab" aria-selected={portfolioMode === 'resume'} onClick={() => setPortfolioMode('resume')}><BriefcaseBusiness size={15} />{t.resume}</button><button role="tab" aria-selected={portfolioMode === 'portfolio'} onClick={() => setPortfolioMode('portfolio')}><BookOpen size={15} />{t.portfolio}</button></div><section className="portfolio-document"><div className="portfolio-document-head"><div><span className="section-kicker">{t.observedOnGithub}</span><h2>{portfolioMode === 'resume' ? t.resume : t.portfolio}</h2></div><div className="report-actions"><button className="button-secondary" onClick={() => void copyValue(portfolioMode === 'resume' ? data.analysis.resume_markdown : data.analysis.portfolio_markdown)}><FileText size={15} />{t.copyText}</button><button className="button-secondary" onClick={() => downloadFile(`${data.profile.username}-${portfolioMode}.md`, portfolioMode === 'resume' ? data.analysis.resume_markdown : data.analysis.portfolio_markdown, 'text/markdown')}><Download size={15} />{t.downloadMarkdown}</button></div></div><pre className="report-markdown" dir="ltr">{portfolioMode === 'resume' ? data.analysis.resume_markdown : data.analysis.portfolio_markdown}</pre><div className="report-method"><ShieldCheck size={16} /><p>{t.portfolioIntegrity}</p></div></section></div>}
 
-          {view === 'settings' && <div className="view-stack">{data && overviewHeader}<div className="page-title"><div><span className="section-kicker">{t.workspacePreferences}</span><h1>{t.nav.settings}</h1><p>{t.settingsIntro}</p></div></div><section className="content-section language-settings"><div className="section-heading"><div><h2>{t.language}</h2><p>{t.languageDescription}</p></div><div className="language-switch large-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>{t.english}</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => setLanguage('fa')}>{t.persian}</button></div></div></section>{renderLLMSettings()}</div>}
+          {view === 'settings' && <div className="view-stack">{data && overviewHeader}<div className="page-title"><div><span className="section-kicker">{t.workspacePreferences}</span><h1>{t.nav.settings}</h1><p>{t.settingsIntro}</p></div></div><section className="content-section language-settings"><div className="section-heading"><div><h2>{t.language}</h2><p>{t.languageDescription}</p></div><div className="language-switch large-switch"><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => handleLanguageChange('en')}>{t.english}</button><button type="button" lang="fa" aria-pressed={language === 'fa'} onClick={() => handleLanguageChange('fa')}>{t.persian}</button></div></div></section>{renderLLMSettings()}</div>}
         </main>
         <footer className="workspace-footer"><span>{t.footerEvidence}</span><span>GitIntel <bdi dir="ltr">·</bdi> {t.localAnalysis}</span></footer>
       </div>

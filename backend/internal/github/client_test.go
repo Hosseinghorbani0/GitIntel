@@ -36,6 +36,118 @@ func TestRepositoryListOptionsExcludeMemberRepositories(t *testing.T) {
 	}
 }
 
+func TestGetRepositoriesCapsPaginationAndReportsTruncation(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		page := r.URL.Query().Get("page")
+		if page == "" {
+			page = "1"
+		}
+		if page != "4" {
+			nextPage := "2"
+			if page == "2" {
+				nextPage = "3"
+			} else if page == "3" {
+				nextPage = "4"
+			}
+			w.Header().Set("Link", "<"+serverURL(r)+"/users/octocat/repos?page="+nextPage+">; rel=\"next\"")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"name":"repo","full_name":"octocat/repo","private":false}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	repos, err := client.GetRepositories(context.Background(), "octocat")
+	if err != nil {
+		t.Fatalf("get repositories: %v", err)
+	}
+	if requests != maxRepositoryPages || len(repos) != maxRepositoryPages {
+		t.Fatalf("expected exactly %d pages and repositories, got requests=%d repos=%d", maxRepositoryPages, requests, len(repos))
+	}
+	if !client.RepositoriesTruncated() {
+		t.Fatal("expected client to report that additional repository pages were truncated")
+	}
+}
+
+func TestGitHubETagCacheReusesResponseAfterNotModified(t *testing.T) {
+	conditionalRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") == `"profile-v1"` {
+			conditionalRequests++
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"profile-v1"`)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"login":"octocat","name":"Octocat","public_repos":3}`))
+	}))
+	defer server.Close()
+
+	for i := 0; i < 2; i++ {
+		client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+		if err != nil {
+			t.Fatalf("create GitHub client: %v", err)
+		}
+		profile, err := client.GetProfile(context.Background(), "octocat")
+		if err != nil {
+			t.Fatalf("get profile on request %d: %v", i+1, err)
+		}
+		if profile.Username != "octocat" || profile.DisplayName != "Octocat" || profile.PublicRepos != 3 {
+			t.Fatalf("unexpected cached profile response: %+v", profile)
+		}
+	}
+	if conditionalRequests != 1 {
+		t.Fatalf("expected the second request to use If-None-Match and receive 304, got %d conditional requests", conditionalRequests)
+	}
+}
+
+func TestGetProfileHonorsRequestContextCancellation(t *testing.T) {
+	requestStarted := make(chan struct{})
+	requestCanceled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+		close(requestCanceled)
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.GetProfile(ctx, "octocat")
+		done <- err
+	}()
+	<-requestStarted
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected canceled GitHub request to return an error")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("GitHub request did not stop after context cancellation")
+	}
+	select {
+	case <-requestCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("cancellation was not propagated to the upstream HTTP request")
+	}
+}
+
+func serverURL(r *http.Request) string {
+	return "http://" + r.Host
+}
+
 func TestCheckReadmePresenceWithMockServer(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/octocat/with-readme/readme", func(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +503,120 @@ func TestNormalizeRepositoryDoesNotHardcodeReleaseAbsent(t *testing.T) {
 	}
 }
 
+func TestPopulateLanguageBreakdownUsesGitHubLanguageByteMap(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octocat/go-service/languages", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"Go":1200,"TypeScript":800}`))
+	})
+	mux.HandleFunc("/repos/octocat/python-tool/languages", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"Python":2100}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	repos := []Repository{
+		{Name: "go-service", FullName: "octocat/go-service", Language: "Go"},
+		{Name: "python-tool", FullName: "octocat/python-tool", Language: "Python"},
+	}
+
+	verified, err := client.PopulateLanguageBreakdown(context.Background(), repos, 2)
+	if err != nil {
+		t.Fatalf("failed to populate language breakdown: %v", err)
+	}
+	if verified[0].LanguageBytes["Go"] != 1200 || verified[0].LanguageBytes["TypeScript"] != 800 {
+		t.Fatalf("expected Go service language bytes to be populated, got %#v", verified[0].LanguageBytes)
+	}
+	if verified[1].LanguageBytes["Python"] != 2100 {
+		t.Fatalf("expected Python tool language bytes to be populated, got %#v", verified[1].LanguageBytes)
+	}
+}
+
+func TestVerifyTestingArtifactsUsesTreeContentsNotRepositoryName(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octocat/test-sandbox/git/trees/main", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sha":"tree1","truncated":false,"tree":[{"path":"README.md","type":"blob"}]}`))
+	})
+	mux.HandleFunc("/repos/octocat/service/git/trees/main", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sha":"tree2","truncated":false,"tree":[{"path":"internal/service_test.go","type":"blob"},{"path":".github/workflows/ci.yml","type":"blob"}]}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	repos := []Repository{
+		{Name: "test-sandbox", FullName: "octocat/test-sandbox", DefaultBranch: "main"},
+		{Name: "service", FullName: "octocat/service", DefaultBranch: "main"},
+	}
+
+	verified, err := client.VerifyTestingArtifacts(context.Background(), repos, 5)
+	if err != nil {
+		t.Fatalf("verify testing artifacts: %v", err)
+	}
+	if verified[0].TestingStatus != TestingArtifactsVerifiedAbsent {
+		t.Fatalf("repository name must not create a test signal; got status %q", verified[0].TestingStatus)
+	}
+	if verified[1].TestingStatus != TestingArtifactsVerifiedPresent || len(verified[1].TestingArtifacts) != 2 {
+		t.Fatalf("expected test file and CI workflow evidence, got %#v", verified[1])
+	}
+}
+
+func TestVerifyTestingArtifactsLeavesTruncatedTreesUnverified(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octocat/service/git/trees/main", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sha":"tree1","truncated":true,"tree":[{"path":"README.md","type":"blob"}]}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	verified, err := client.VerifyTestingArtifacts(context.Background(), []Repository{{
+		Name: "service", FullName: "octocat/service", DefaultBranch: "main",
+	}}, 1)
+	if err != nil {
+		t.Fatalf("verify testing artifacts: %v", err)
+	}
+	if verified[0].TestingStatus != TestingArtifactsUnverified {
+		t.Fatalf("truncated Git trees must remain unverified, got %q", verified[0].TestingStatus)
+	}
+}
+
+func TestNormalizeRepositoryUsesVerifiedDocumentationFlags(t *testing.T) {
+	hasPages, hasWiki := true, false
+	repo := normalizeRepository(&gh.Repository{
+		Name:     stringPointer("paradocs"),
+		FullName: stringPointer("octocat/paradocs"),
+		HasPages: &hasPages,
+		HasWiki:  &hasWiki,
+	})
+	if !repo.HasPages || repo.HasWiki || !repo.HasDocs {
+		t.Fatalf("expected docs aggregate to derive from Pages/Wiki flags, got %#v", repo)
+	}
+	withoutArtifacts := normalizeRepository(&gh.Repository{
+		Name:        stringPointer("docs-broken"),
+		FullName:    stringPointer("octocat/docs-broken"),
+		Description: stringPointer("No documentation available"),
+	})
+	if withoutArtifacts.HasDocs {
+		t.Fatal("repository name or description must not imply documentation artifacts")
+	}
+}
+
 func stringPointer(value string) *string { return &value }
-
-
-

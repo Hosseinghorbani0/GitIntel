@@ -9,6 +9,16 @@ import (
 )
 
 func HandleTest(w http.ResponseWriter, r *http.Request) {
+	cfg, err := LoadConfigFromEnv()
+	if err != nil {
+		writeLLMError(w, http.StatusBadRequest, "INVALID_LLM_CONFIG", err.Error())
+		return
+	}
+	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	HandleTestWithManager(w, r, manager)
+}
+
+func HandleTestWithManager(w http.ResponseWriter, r *http.Request, manager *LLMCredentialManager) {
 	if r.Method != http.MethodPost {
 		writeLLMError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "POST is required.")
 		return
@@ -37,7 +47,10 @@ func HandleTest(w http.ResponseWriter, r *http.Request) {
 		writeLLMProviderError(w, http.StatusPaymentRequired, "PAYMENT_REQUIRED", paymentRequiredProviderError())
 		return
 	}
-	manager := NewCredentialManager(CredentialEnvName(cfg.Provider))
+	if manager == nil {
+		writeLLMError(w, http.StatusServiceUnavailable, "MISSING_LLM_CREDENTIALS", "Provider credential manager is unavailable.")
+		return
+	}
 	manager.Load()
 	if !manager.HasCredentials() {
 		writeLLMError(w, http.StatusServiceUnavailable, "MISSING_LLM_CREDENTIALS", "No provider credential is configured.")

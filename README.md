@@ -31,20 +31,19 @@ GitIntel calculates 6 core engineering signals categorized by level (`Strong`, `
 
 | Signal | Description | Observable Evidence | Current Limitations |
 | :--- | :--- | :--- | :--- |
-| **Code Evolution** | Commit activity cadence and active repository maintenance lifespan. | Commit timestamps, creation dates, and push frequency across repos. | Does not inspect individual commit diffs or line counts. |
-| **Maintenance** | Active upkeep versus abandoned or archived repositories. | Archived status, recent push dates, active issue resolution. | Dependent on public GitHub activity windows. |
-| **Testing Evidence** | Presence of automated testing artifacts. | Name-marker heuristics across repositories. | Test assertions, coverage percentages, and test runs are not executed. |
-| **Collaboration** | Team and open-source interaction indicators. | Forked repositories, open issues, and pull request activity. | Code review depth and discussion quality are not parsed. |
-| **Documentation** | Codebase documentation completeness and discoverability. | Bounded tri-state README verification (`verified`, `missing`, `unverified`), license existence, and docs markers. | Detailed README verification is capped at the top 5 repositories to preserve GitHub rate limits. |
+| **Code Evolution** | Repository update and push timestamp recency. | `updated_at` and `pushed_at` timestamps across repositories. | Commit volume, diff size, branches, and whether metadata updates correspond to code changes are not collected. |
+| **Maintenance** | Recent activity and archived lifecycle metadata. | Archived status and recent push/update dates. | Inactivity does not imply poor maintenance; issue handling and code changes are not inspected. |
+| **Testing Evidence** | Presence of observable test-related artifacts. | Bounded Git tree inspection for test files/directories and CI workflow names. | Test execution, coverage, assertions, and quality are not evaluated; at most 5 original repositories are inspected. |
+| **Collaboration** | Conservative indicators of external interaction. | Incoming forks and combined open-issue/pull-request counts on original repositories. | Forks do not prove collaboration; contributor identities and PR history on non-owned repositories are not collected. |
+| **Documentation** | Presence of verifiable documentation artifacts. | Bounded tri-state README verification, GitHub Pages/Wiki flags, and LICENSE metadata. | README verification is capped at 5 repositories; content and documentation quality are not inspected. |
 | **Release / Delivery** | Production delivery and version tagging practices. | Bounded tri-state release verification (`verified_present`, `verified_absent`, `unverified`) and published release counts. | Release checks are bounded to at most 5 active original repositories updated in the last 180 days; deployment pipelines and release assets are not inspected. |
 
 ### Bounded Verification & Rate Limits
 To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 5,000/hour authenticated with PAT):
-* Repositories start in an `unverified` status for README and release data.
-* When the API rate limit has `Remaining >= 5`, the client performs bounded checks:
-  * **README Verification**: Queries `/repos/{owner}/{repo}/readme` for up to **5 top original repositories**.
-  * **Release Verification**: Queries `/repos/{owner}/{repo}/releases` for up to **5 top original repositories** (non-fork, non-archived, updated within the last 180 days).
-* Any HTTP 403 / 429 response gracefully falls back to `unverified` rather than failing the analysis or misreporting missing evidence.
+* Repository lists are capped at **300 owned repositories** (three 100-item pages); truncated analyses include a collection warning.
+* The analyzer reserves five requests for rate-limit headroom. Remaining optional-check budget is shared across README checks (up to 5), release checks (up to 5), test/CI tree inspections (up to 5), and language-byte checks (up to 10 repositories).
+* Repositories start in an `unverified` status for README, release, and test/CI data. README/release checks preserve unknown status on API failures; unexpected test-tree or language endpoint errors are surfaced instead of being silently converted into negative evidence. When the request budget is too low for language-byte checks, the explicitly labeled repository-frequency estimate is used.
+* GitHub GET responses carrying an ETag are cached in a bounded, token-scoped in-memory LRU (128 entries, up to 512 KiB per response, five-minute TTL). Follow-up requests use `If-None-Match`; a 304 reuses the cached response body.
 
 ---
 
@@ -52,7 +51,7 @@ To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 
 
 * **Public GitHub Profile Analysis**: Fast, non-destructive metadata ingestion via the GitHub REST API.
 * **Deterministic Signal Scoring**: Transparent evidence arrays, confidence ratings, and limitations disclosures.
-* **Language Distribution**: Breakdown of top languages across active repositories.
+* **Language Distribution**: Top-repository code-byte distribution when the API quota permits; otherwise clearly labeled repository-frequency estimate.
 * **Automated Exports**:
   * Markdown Resume summary ready for developer profiles.
   * Markdown Portfolio summary highlighting featured projects and justifications.
