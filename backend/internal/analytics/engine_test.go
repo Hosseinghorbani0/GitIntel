@@ -56,6 +56,62 @@ func TestBuildLanguageDistributionUsesRepositoryCounts(t *testing.T) {
 	}
 }
 
+func TestBuildLanguageDistributionUsesLanguageByteVolume(t *testing.T) {
+	repos := []gh.Repository{
+		{Name: "alpha", Language: "Go", FullName: "owner/alpha", LanguageBytes: map[string]int{"Go": 900, "TypeScript": 100}},
+		{Name: "beta", Language: "Python", FullName: "owner/beta", LanguageBytes: map[string]int{"Python": 2000}},
+	}
+
+	langs := buildLanguageDistribution(repos)
+	if len(langs) != 3 {
+		t.Fatalf("expected 3 language buckets, got %d", len(langs))
+	}
+	byName := map[string]LanguageBucket{}
+	for _, lang := range langs {
+		byName[lang.Name] = lang
+	}
+	if byName["Python"].Count != 2000 {
+		t.Fatalf("expected Python byte volume to be 2000, got %d", byName["Python"].Count)
+	}
+	if byName["Go"].Count != 900 {
+		t.Fatalf("expected Go byte volume to be 900, got %d", byName["Go"].Count)
+	}
+	if byName["TypeScript"].Count != 100 {
+		t.Fatalf("expected TypeScript byte volume to be 100, got %d", byName["TypeScript"].Count)
+	}
+	if byName["Python"].Percentage <= byName["Go"].Percentage {
+		t.Fatalf("expected Python to dominate when weighted by bytes, got Go=%f Python=%f", byName["Go"].Percentage, byName["Python"].Percentage)
+	}
+}
+
+func TestBuildLanguageDistributionUsesOnlySuccessfulByteSample(t *testing.T) {
+	repos := []gh.Repository{
+		{Name: "sampled", Language: "Go", LanguageBytes: map[string]int{"Go": 100}},
+		{Name: "not-sampled", Language: "Python"},
+	}
+
+	langs := buildLanguageDistribution(repos)
+	if len(langs) != 1 || langs[0].Name != "Go" || langs[0].Percentage != 100 {
+		t.Fatalf("expected byte distribution to exclude unmeasured repository-count data, got %#v", langs)
+	}
+	basis, sampleSize := languageDistributionSource(repos)
+	if basis != "code_bytes_sampled" || sampleSize != 1 {
+		t.Fatalf("expected sampled byte source with one measured repository, got %q and %d", basis, sampleSize)
+	}
+}
+
+func TestLanguageDistributionSourceUsesRepositoryFrequencyWhenUnmeasured(t *testing.T) {
+	repos := []gh.Repository{
+		{Name: "alpha", Language: "Go"},
+		{Name: "beta", Language: "Python"},
+	}
+
+	basis, sampleSize := languageDistributionSource(repos)
+	if basis != "repository_frequency_fallback" || sampleSize != 0 {
+		t.Fatalf("expected repository-frequency fallback, got %q and %d", basis, sampleSize)
+	}
+}
+
 func TestSelectFeaturedPrefersActiveDocumentedRepos(t *testing.T) {
 	now := time.Now()
 	repos := []gh.Repository{
@@ -122,14 +178,74 @@ func TestAnalyzeGeneratesSignalsAndCopyableOutputs(t *testing.T) {
 	}
 }
 
-func TestTestingEvidenceDisclosesRepositoryNameHeuristic(t *testing.T) {
-	withoutMarker := computeTestingEvidence([]gh.Repository{{Name: "service"}})
-	withMarker := computeTestingEvidence([]gh.Repository{{Name: "service-tests"}})
-	if !strings.Contains(withoutMarker.Evidence[0], "contents and CI workflows were not inspected") {
-		t.Fatal("missing test-name marker should disclose uninspected repository contents")
+func TestTestingEvidenceUsesVerifiedArtifactsNotRepositoryNames(t *testing.T) {
+	sandbox := computeTestingEvidence([]gh.Repository{{
+		Name: "test-sandbox", TestingStatus: gh.TestingArtifactsVerifiedAbsent,
+	}})
+	if sandbox.Level != "Limited" || sandbox.Value != 0 || sandbox.Metric["repositories_with_test_artifacts"] != 0 {
+		t.Fatalf("repository name alone must not create a testing signal, got %#v", sandbox)
 	}
-	if !strings.Contains(withMarker.Evidence[0], "name heuristics") || !strings.Contains(withMarker.Evidence[0], "test files and CI workflows were not inspected") {
-		t.Fatal("test-name marker should be reported as a heuristic, not verified test artifacts")
+	verified := computeTestingEvidence([]gh.Repository{{
+		Name: "service", FullName: "octocat/service",
+		TestingStatus:    gh.TestingArtifactsVerifiedPresent,
+		TestingArtifacts: []string{"internal/service_test.go"},
+	}})
+	if verified.Level != "Moderate" || len(verified.Repositories) != 1 || verified.Repositories[0] != "octocat/service" {
+		t.Fatalf("verified artifacts must be cited with their repository, got %#v", verified)
+	}
+	if !containsString(verified.Limitations, "Observed test directory structures and CI configuration; test coverage percentages and assertion rigor were not evaluated.") {
+		t.Fatalf("expected explicit testing quality limitations, got %v", verified.Limitations)
+	}
+	if computeTestingEvidence([]gh.Repository{{Name: "unknown"}}).Level != "Insufficient data" {
+		t.Fatal("uncollected test artifacts must remain insufficient data")
+	}
+}
+
+func TestComputeDocumentationRejectsNameAndDescriptionHeuristics(t *testing.T) {
+	signal := computeDocumentation([]gh.Repository{{
+		Name: "docs-broken", Description: "documentation docs",
+	}})
+	if signal.Level != "Limited" || signal.Metric["repositories_with_documentation_artifacts"] != 0 {
+		t.Fatalf("unverified name or description hints must not earn documentation credit, got %#v", signal)
+	}
+	withFlags := computeDocumentation([]gh.Repository{{
+		Name: "project", HasPages: true, HasWiki: true, HasLicense: true,
+	}})
+	if withFlags.Metric["repositories_with_github_pages"] != 1 ||
+		withFlags.Metric["repositories_with_github_wiki"] != 1 ||
+		withFlags.Metric["repositories_with_license"] != 1 {
+		t.Fatalf("expected verified documentation artifacts to be counted, got %#v", withFlags.Metric)
+	}
+}
+
+func TestCollaborationDoesNotCountPersonalForksAsEvidence(t *testing.T) {
+	idleFork := computeCollaboration([]gh.Repository{{Name: "my-fork", Fork: true}})
+	if idleFork.Level != "Limited" || idleFork.Metric["personal_forked_repositories"] != 1 {
+		t.Fatalf("a personal fork without external activity must remain Limited, got %#v", idleFork)
+	}
+	original := computeCollaboration([]gh.Repository{{Name: "shared", FullName: "octocat/shared", Forks: 3}})
+	if original.Level != "Moderate" || original.Metric["incoming_forks_on_original_repositories"] != 3 {
+		t.Fatalf("incoming forks on original repositories should be distinguished, got %#v", original)
+	}
+	if _, exists := original.Metric["open_issues"]; exists {
+		t.Fatal("combined issue and pull-request count must not use the ambiguous open_issues key")
+	}
+}
+
+func TestArchivedRepositoriesAreNotClassifiedAsNeglected(t *testing.T) {
+	signal := computeMaintenance([]gh.Repository{{Name: "stable-library", Archived: true}})
+	if signal.Classification != "Archived / Completed" || !strings.Contains(signal.Evidence[0], "inactivity alone is not treated as poor maintenance") {
+		t.Fatalf("archived repositories must be treated as potentially complete, got %#v", signal)
+	}
+}
+
+func TestCodeEvolutionDisclosesTimestampProxies(t *testing.T) {
+	signal := computeCodeEvolution([]gh.Repository{{Name: "active", FullName: "octocat/active", UpdatedAt: time.Now()}})
+	if !containsString(signal.Limitations, "Tracks recent push and repository update timestamps. Commit volume, diff size, and branch activity are not collected in this REST collection.") {
+		t.Fatalf("expected timestamp proxy limitation, got %v", signal.Limitations)
+	}
+	if len(signal.Repositories) != 1 || signal.Repositories[0] != "octocat/active" {
+		t.Fatalf("expected supporting repository reference, got %v", signal.Repositories)
 	}
 }
 
@@ -295,6 +411,15 @@ func TestComputeReleaseActivityWithTriStateReleases(t *testing.T) {
 	}
 }
 
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestSelectFeaturedBoostsVerifiedReleases(t *testing.T) {
 	now := time.Now()
 	repos := []gh.Repository{
@@ -336,5 +461,3 @@ func TestSelectFeaturedBoostsVerifiedReleases(t *testing.T) {
 		t.Fatalf("expected 'Published releases' in why explanation, got %v", featured[0].Why)
 	}
 }
-
-
