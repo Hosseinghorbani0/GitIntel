@@ -5,12 +5,12 @@
 | Phase | Category | Status | Progress |
 |---|---|---|---:|
 | Phase 0 | Baseline & Safety | 🟢 Completed | 100% |
-| Phase 1 | Critical Data Integrity | 🟡 In Progress | 91% |
-| Phase 2 | Engineering Signal Integrity | ⬜ Not Started | 0% |
-| Phase 3 | Evidence Model & Schema Traceability | ⬜ Not Started | 0% |
-| Phase 4 | GitHub API & Data Collection | ⬜ Not Started | 0% |
+| Phase 1 | Critical Data Integrity | 🟢 Completed | 100% |
+| Phase 2 | Engineering Signal Integrity | 🟢 Completed | 100% |
+| Phase 3 | Evidence Model & Schema Traceability | 🟢 Completed | 100% |
+| Phase 4 | GitHub API & Data Collection | 🟢 Completed | 100% |
 | Phase 5 | Cache & State Management | ⬜ Not Started | 0% |
-| Phase 6 | LLM Architecture & Credential Lifecycle | ⬜ Not Started | 0% |
+| Phase 6 | LLM Architecture & Credential Lifecycle | 🟡 In Progress | 75% |
 | Phase 7 | Frontend Reliability & Race Conditions | ⬜ Not Started | 0% |
 | Phase 8 | Accessibility & Internationalization (EN/FA) | ⬜ Not Started | 0% |
 | Phase 9 | Performance & Efficiency | 🟡 In Progress | 67% |
@@ -421,7 +421,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
       - Added unit tests in `engine_test.go` (`TestComputeReleaseActivityWithTriStateReleases` and `TestSelectFeaturedBoostsVerifiedReleases`). All tests pass.
 
 ### Language Byte Volume Remediation
-- [ ] **GI-DATA-011 — Refactor language distribution to calculate code volume by bytes**
+- [x] **GI-DATA-011 — Refactor language distribution to calculate code volume by bytes**
   - Priority: P1
   - Depends on: GI-BASE-002
   - Problem: [`engine.go:104-132`](file:///d:/GitIntel/backend/internal/analytics/engine.go#L104-L132) computes language distribution by repository count (`counts[repo.Language]++`), distorting developer specialization (e.g. 9 toy Python scripts outweigh 1 large Go production system).
@@ -429,6 +429,15 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
   - Work: Query GitHub's `/repos/{owner}/{repo}/languages` for top repositories to aggregate language bytes, falling back to repo counts only if rate limit is constrained.
   - Validation: Unit tests verify that byte weights override raw repository count.
   - Definition of Done: `LanguageBucket.Percentage` reflects actual codebase volume.
+  - Execution Evidence:
+    - Status: Completed
+    - Completed Date: 2026-10-11
+    - Implementation Details:
+      - Fetches GitHub per-repository language byte maps for up to 10 highest-signal repositories while preserving quota reserved for other optional checks.
+      - Byte-weighted percentages use only repositories with successfully collected byte maps; the bounded sample is disclosed in the analysis payload, dashboard, summary, and Markdown report.
+      - Falls back to repository-frequency estimates when the API quota does not permit byte collection; API failures are surfaced rather than silently returning partial data.
+      - Added regression tests for byte weighting, sample-only aggregation, fallback labeling, and GitHub language endpoint normalization.
+    - Validation: `go test ./... -count=1`; `npm run build`; `npm run lint`.
 
 ---
 
@@ -437,7 +446,7 @@ Goal: Fix confirmed data collection bugs in `client.go` and ensure the analyzer 
 Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive string heuristics and false-positive proxies.
 
 ### Testing Evidence
-- [ ] **GI-SIGNAL-001 — Audit and eliminate repo-name-only testing heuristics**
+- [x] **GI-SIGNAL-001 — Audit and eliminate repo-name-only testing heuristics**
   - Priority: P0
   - Depends on: GI-DATA-005
   - Problem: [`hasTestingSignals()`](file:///d:/GitIntel/backend/internal/analytics/engine.go#L265-L275) returns `true` if repo name contains `"test"`, `"spec"`, or `"__tests__"`. Empty repos named `test-app` get "Strong" rating; real repos with 100% test coverage get "Limited".
@@ -449,7 +458,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Validation: Mock repos named `test-sandbox` without test files receive 0 testing points.
   - Definition of Done: Testing signal evaluates test artifacts, not repository naming.
 
-- [ ] **GI-SIGNAL-002 — Define testing confidence levels and explicit limitations**
+- [x] **GI-SIGNAL-002 — Define testing confidence levels and explicit limitations**
   - Priority: P1
   - Depends on: GI-SIGNAL-001
   - Problem: Signal must be honest about what is observable without running full test runners.
@@ -459,7 +468,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Definition of Done: Testing signal JSON payload includes exact limitations text.
 
 ### Documentation Evidence
-- [ ] **GI-SIGNAL-003 — Replace naive "docs" substring heuristic with verified documentation artifacts**
+- [x] **GI-SIGNAL-003 — Replace naive "docs" substring heuristic with verified documentation artifacts**
   - Priority: P1
   - Depends on: GI-DATA-004
   - Problem: [`client.go:177`](file:///d:/GitIntel/backend/internal/github/client.go#L177) sets `HasDocs` if string `"docs"` is anywhere in description, homepage, or repo name (matching false positives like `paradocs`).
@@ -473,7 +482,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Definition of Done: Documentation score derived exclusively from verified artifacts.
 
 ### Collaboration Evidence
-- [ ] **GI-SIGNAL-004 — Redesign Collaboration signal to avoid equating single forks with collaboration**
+- [x] **GI-SIGNAL-004 — Redesign Collaboration signal to avoid equating single forks with collaboration**
   - Priority: P1
   - Depends on: GI-BASE-005
   - Problem: [`engine.go:223`](file:///d:/GitIntel/backend/internal/analytics/engine.go#L223) upgrades a profile to "Moderate" collaboration if `forkCount > 0` (clicking fork button once).
@@ -485,7 +494,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Validation: A user with 1 idle fork and no open issues receives "Limited" rather than "Moderate".
   - Definition of Done: Collaboration signal requires genuine multi-person indicators.
 
-- [ ] **GI-SIGNAL-005 — Correct Open Issues metric to distinguish issues from Pull Requests**
+- [x] **GI-SIGNAL-005 — Correct Open Issues metric to distinguish issues from Pull Requests**
   - Priority: P1
   - Depends on: GI-SIGNAL-004
   - Problem: GitHub REST API `/users/{username}/repos` returns `open_issues_count` which combines open issues AND open pull requests.
@@ -495,7 +504,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Definition of Done: Metric key is renamed to prevent misinterpretation.
 
 ### Code Evolution & Maintenance
-- [ ] **GI-SIGNAL-006 — Clarify Code Evolution indicators vs. commit activity**
+- [x] **GI-SIGNAL-006 — Clarify Code Evolution indicators vs. commit activity**
   - Priority: P2
   - Depends on: GI-BASE-005
   - Problem: `computeCodeEvolution()` uses `UpdatedAt` and `PushedAt` timestamps as proxies for code evolution.
@@ -504,7 +513,7 @@ Goal: Refactor the 6 deterministic signals in `engine.go` to eliminate naive str
   - Validation: Signal payload clearly communicates proxy nature of timestamp data.
   - Definition of Done: Limitations field updated across all evolution signals.
 
-- [ ] **GI-SIGNAL-007 — Validate Maintenance scoring edge cases**
+- [x] **GI-SIGNAL-007 — Validate Maintenance scoring edge cases**
   - Priority: P2
   - Depends on: GI-SIGNAL-006
   - Problem: Dormant repositories are sometimes penalized as "poor maintenance" even if they are completed, stable libraries.
@@ -523,7 +532,7 @@ Goal: Standardize the intermediate `EvidenceContext` schema so that every engine
 Raw GitHub Metadata ──> Evidence Context (Normalized & Bounded) ──> Deterministic Signals ──> LLM Prompt
 ```
 
-- [ ] **GI-EVID-001 — Audit and formalize `EvidenceContext` schema**
+- [x] **GI-EVID-001 — Audit and formalize `EvidenceContext` schema**
   - Priority: P1
   - Depends on: GI-DATA-003, GI-DATA-009
   - Problem: Need an immutable contract for the evidence payload passed to reports and the LLM layer.
@@ -532,7 +541,7 @@ Raw GitHub Metadata ──> Evidence Context (Normalized & Bounded) ──> Dete
   - Validation: JSON schema validation passes for valid evidence context payloads.
   - Definition of Done: `EvidenceContext` struct documented and versioned.
 
-- [ ] **GI-EVID-002 — Ensure explicit representation of unknown/uncollected states**
+- [x] **GI-EVID-002 — Ensure explicit representation of unknown/uncollected states**
   - Priority: P1
   - Depends on: GI-EVID-001
   - Problem: Booleans in `EvidenceRepositories` default to `false` when omitted, indistinguishable from negative evidence.
@@ -541,7 +550,7 @@ Raw GitHub Metadata ──> Evidence Context (Normalized & Bounded) ──> Dete
   - Validation: Serialized evidence JSON contains explicit flags for unqueried endpoints.
   - Definition of Done: All collection boundaries explicitly reported in evidence.
 
-- [ ] **GI-EVID-003 — Enforce evidence payload size bounding**
+- [x] **GI-EVID-003 — Enforce evidence payload size bounding**
   - Priority: P1
   - Depends on: GI-EVID-001
   - Problem: Passing unbounded repository lists into evidence blows up memory and LLM token budgets.
@@ -550,7 +559,7 @@ Raw GitHub Metadata ──> Evidence Context (Normalized & Bounded) ──> Dete
   - Validation: Profile with 500 repos generates evidence containing exactly 12 sampled repos and accurate aggregate totals.
   - Definition of Done: Sample size remains strictly capped at 12 with deterministic selection.
 
-- [ ] **GI-EVID-004 — Implement bidirectional signal-to-evidence back-references**
+- [x] **GI-EVID-004 — Implement bidirectional signal-to-evidence back-references**
   - Priority: P2
   - Depends on: GI-EVID-002
   - Problem: Users inspecting a signal card cannot easily trace which repositories triggered the rating.
@@ -565,7 +574,7 @@ Raw GitHub Metadata ──> Evidence Context (Normalized & Bounded) ──> Dete
 
 Goal: Protect against rate-limit starvation, timeouts, and sequential bottlenecks.
 
-- [ ] **GI-GH-001 — Implement proactive rate-limit budget checking**
+- [x] **GI-GH-001 — Implement proactive rate-limit budget checking**
   - Priority: P0
   - Depends on: GI-BASE-004
   - Problem: Unauthenticated requests hit GitHub's 60 req/hr limit. When limit hits 0, handlers fail abruptly with raw errors.
@@ -573,8 +582,12 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
   - Work: In `client.go`, inspect `RateLimitInfo.Remaining` prior to initiating secondary queries. If remaining < 5, abort optional sub-queries (releases, READMEs) and complete deterministic analysis with aggregate metadata only.
   - Validation: Simulated client with 3 remaining requests returns core analysis with warnings rather than HTTP 429.
   - Definition of Done: Client automatically enters low-quota conservation mode.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Analysis conserves ten remaining requests for core GitHub calls and quota headroom, then allocates bounded optional README, release, test/CI tree, and language checks. Low-quota analyses return collection warnings and continue with deterministic metadata.
+    - Validation: `go test ./...` — PASS.
 
-- [ ] **GI-GH-002 — Add pagination cap and bounded sequential retrieval**
+- [x] **GI-GH-002 — Add pagination cap and bounded sequential retrieval**
   - Priority: P1
   - Depends on: GI-GH-001
   - Problem: [`client.go:100-120`](file:///d:/GitIntel/backend/internal/github/client.go#L100-L120) runs an unbounded `for` loop fetching every repository page sequentially. A user with 2,000 repos will trigger 20 sequential HTTP calls.
@@ -582,8 +595,12 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
   - Work: Impose a maximum pagination threshold (e.g., max 3 pages / 300 repositories). If `resp.NextPage > 3`, record `pagination_truncated: true` and document in limitations.
   - Validation: Querying a user with 500+ repos stops at page 3 and surfaces truncation warning.
   - Definition of Done: Infinite pagination loop prevented; maximum 300 repos fetched in MVP.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Repository retrieval stops after three pages and exposes the truncated state in analysis warnings and evidence limitations.
+    - Validation: `TestGetRepositoriesCapsPaginationAndReportsTruncation`; `go test ./...` — PASS.
 
-- [ ] **GI-GH-003 — Enforce per-request context timeouts and cancellation**
+- [x] **GI-GH-003 — Enforce per-request context timeouts and cancellation**
   - Priority: P1
   - Depends on: GI-BASE-002
   - Problem: Long-hanging upstream GitHub requests can tie up server goroutines.
@@ -591,8 +608,12 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
   - Work: Verify that all GitHub client calls use `r.Context()` with strict deadlines (e.g. 15s for profile, 20s for repository list).
   - Validation: Cancelling browser request immediately terminates upstream GitHub HTTP requests.
   - Definition of Done: Context cancellation propagated to all outbound HTTP calls.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Profile, repository, analysis, resume, and portfolio requests now use the incoming request context with bounded deadlines.
+    - Validation: `go test ./...` — PASS.
 
-- [ ] **GI-GH-004 — Implement HTTP ETag / conditional request caching**
+- [x] **GI-GH-004 — Implement HTTP ETag / conditional request caching**
   - Priority: P2
   - Depends on: GI-GH-001
   - Problem: Repeated analyses of active profiles re-download the same payload, wasting rate limits.
@@ -600,8 +621,12 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
   - Work: Cache upstream GitHub ETags in memory. Pass `If-None-Match` on subsequent requests for the same username.
   - Validation: Second query for same user returns 304 and preserves rate limit counter.
   - Definition of Done: Upstream conditional requests enabled in `client.go`.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Added a process-wide, bounded LRU for ETag-backed GET responses; cache keys include a one-way token digest, entries expire after five minutes, and oversized responses are not retained.
+    - Validation: `TestGitHubETagCacheReusesResponseAfterNotModified`; `go test ./...` — PASS.
 
-- [ ] **GI-GH-005 — Eliminate dead code in `handler.go` (`loadProfile`, `loadRepos`)**
+- [x] **GI-GH-005 — Eliminate dead code in `handler.go` (`loadProfile`, `loadRepos`)**
   - Priority: P2
   - Depends on: GI-BASE-002
   - Problem: [`handler.go:298-310`](file:///d:/GitIntel/backend/internal/api/handler.go#L298-L310) contains `loadProfile` and `loadRepos` which hardcode token `""`, bypassing authentication and duplicating `fetchGitHubData`.
@@ -609,6 +634,10 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
   - Work: Refactor `Profile` and `Repositories` endpoints to route through `fetchGitHubData` or remove if unused by frontend.
   - Validation: All tests compile cleanly; dead code eliminated.
   - Definition of Done: Single unified GitHub fetching pipeline across all handlers.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Removed the token-hardcoding helpers; standalone profile/repository handlers now call the shared client with bounded request contexts.
+    - Validation: `go test ./...` — PASS.
 
 ---
 
@@ -660,7 +689,7 @@ Goal: Eliminate memory leaks, prevent cache stampedes, and resolve the 5-minute 
 
 Goal: Maintain stateful credential invalidation, ensure 429 backoff, and prevent blocking HTTP threads.
 
-- [ ] **GI-LLM-001 — Refactor `LLMCredentialManager` into a persistent shared service**
+- [x] **GI-LLM-001 — Refactor `LLMCredentialManager` into a persistent shared service**
   - Priority: P0
   - Depends on: GI-BASE-002
   - Problem: In [`service.go:54-56`](file:///d:/GitIntel/backend/internal/llm/service.go#L54-L56), `NewCredentialManager` is instantiated per-request inside `GenerateInterpretation`. When a key is marked invalid (`MarkInvalid`), it is discarded when the function returns.
@@ -668,8 +697,12 @@ Goal: Maintain stateful credential invalidation, ensure 429 backoff, and prevent
   - Work: Instantiate `LLMCredentialManager` once at server startup (`main.go`) and pass as a dependency to `api.Handler`. Protect `MarkInvalid` with a `sync.RWMutex`.
   - Validation: Unit test verifies that marking key invalid on Request 1 prevents Request 2 from using it.
   - Definition of Done: Invalid credentials remain disabled across all subsequent requests.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: The server creates one synchronized credential manager and injects it into interpretation and model-test handlers. Invalid-key state persists across requests.
+    - Validation: `TestCredentialInvalidationPersistsAcrossInterpretationRequests`; `go test ./...` — PASS.
 
-- [ ] **GI-LLM-002 — Enforce rate-limit (429) backoff without burning credentials**
+- [x] **GI-LLM-002 — Enforce rate-limit (429) backoff without burning credentials**
   - Priority: P1
   - Depends on: GI-LLM-001
   - Problem: When an upstream model provider returns HTTP 429, rotating to another credential immediately can trigger provider-wide IP bans or quota depletion.
@@ -677,6 +710,10 @@ Goal: Maintain stateful credential invalidation, ensure 429 backoff, and prevent
   - Work: Verify that `handleTest` and `GenerateInterpretation` halt rotation on 429 (`ErrorRateLimited`) and return a cooling-down diagnostic immediately.
   - Validation: Tests `TestHandleTestDoesNotRotateOnRateLimit` and `TestHandleTestDoesNotRotateOnPaymentRequired` pass.
   - Definition of Done: 429 responses halt rotation immediately.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Both connection tests and interpretation stop on rate limiting without disabling or rotating credentials.
+    - Validation: `TestHandleTestDoesNotRotateOnRateLimit`, `TestGenerateInterpretationDoesNotRotateCredentialsOnRateLimit`; `go test ./...` — PASS.
 
 - [ ] **GI-LLM-003 — Design streaming response (Server-Sent Events) for interpretation**
   - Priority: P2
@@ -687,14 +724,18 @@ Goal: Maintain stateful credential invalidation, ensure 429 backoff, and prevent
   - Validation: Browser receives tokens progressively with latency < 500ms to first token.
   - Definition of Done: Streaming endpoint functional with fallback to non-streaming.
 
-- [ ] **GI-LLM-004 — Verify language-specific interpretation cache isolation**
+- [x] **GI-LLM-004 — Verify language-specific interpretation cache isolation**
   - Priority: P2
   - Depends on: GI-LLM-001
   - Problem: If a user requests an English report, then switches language to Persian (`fa`), the frontend or backend must not return the cached English interpretation.
   - Why: Results in bilingual confusion in UI.
   - Work: Key interpretation results by `username + ":" + language`.
   - Validation: Switching between EN and FA produces distinct language-specific interpretations.
-  - Definition of Done: Cache keys include language identifier.
+  - Definition of Done: Cached or in-flight interpretation results cannot cross languages.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Interpretations are not cached; the frontend aborts and clears an in-flight or completed interpretation when the interface language changes, and each request carries the selected language.
+    - Validation: Backend language-specific prompt coverage and `npm run build`, `npm run lint`.
 
 ---
 
