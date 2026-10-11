@@ -34,8 +34,13 @@ export interface Repository {
   fork: boolean
   visibility: string
   has_docs: boolean
+  has_pages: boolean
+  has_wiki: boolean
   has_readme: boolean
   readme_status?: 'verified_present' | 'verified_absent' | 'unverified'
+  testing_artifacts_status: 'verified_present' | 'verified_absent' | 'unverified'
+  testing_artifacts?: string[]
+  testing_artifacts_check_attempted: boolean
   has_license: boolean
   has_releases: boolean
   release_status?: 'verified_present' | 'verified_absent' | 'unverified'
@@ -60,6 +65,7 @@ export interface Signal {
   value: number
   metric: Record<string, number>
   evidence: string[]
+  repositories?: string[]
   limitations: string[]
   explanation: string
 }
@@ -91,6 +97,8 @@ export interface Analysis {
   metrics: Record<string, number | string | boolean>
   summary: string
   language_distribution: LanguageBucket[]
+  language_distribution_basis: 'code_bytes_sampled' | 'repository_frequency_fallback'
+  language_repositories_sampled: number
   activity: ActivityMetrics
   signals: Signal[]
   featured_projects: FeaturedProject[]
