@@ -90,6 +90,59 @@ func GenerateInterpretationWithManager(ctx context.Context, cfg Config, evidence
 	}
 }
 
+func StreamInterpretationWithManager(ctx context.Context, cfg Config, evidence EvidenceContext, language string, manager *LLMCredentialManager, onToken StreamCallback) (*Response, error) {
+	if onToken == nil {
+		onToken = func(string) error { return nil }
+	}
+	if !AnalysisReportsEnabled() {
+		return nil, ErrAnalysisDisabled
+	}
+	if ProviderAvailabilityStatus(cfg) == "payment_required" {
+		return nil, paymentRequiredProviderError()
+	}
+	if manager == nil {
+		return nil, &ProviderError{Category: ErrorInvalidCredential, Message: "Provider credential manager is unavailable"}
+	}
+	manager.Load()
+	for {
+		credential, ok := manager.SelectAvailable()
+		if !ok {
+			return nil, &ProviderError{Category: ErrorInvalidCredential, Message: "No usable provider credential is configured"}
+		}
+		cfg.Credential = credential.Value
+		provider, err := BuildProvider(cfg)
+		if err != nil {
+			return nil, err
+		}
+		request := ReportPrompt(evidence, language)
+		var result *Response
+		if streamingProvider, ok := provider.(interface {
+			StreamContext(context.Context, Request, StreamCallback) (*Response, error)
+		}); ok {
+			result, err = streamingProvider.StreamContext(ctx, request, onToken)
+		} else {
+			if contextualProvider, ok := provider.(interface {
+				GenerateContext(context.Context, Request) (*Response, error)
+			}); ok {
+				result, err = contextualProvider.GenerateContext(ctx, request)
+			} else {
+				result, err = provider.Generate(request)
+			}
+			if err == nil && result != nil {
+				err = onToken(result.Text)
+			}
+		}
+		if err == nil {
+			return result, nil
+		}
+		if IsInvalidCredential(err) {
+			manager.MarkInvalid(credential.Value, "invalid")
+			continue
+		}
+		return nil, err
+	}
+}
+
 func CredentialEnvName(provider string) string {
 	if strings.EqualFold(strings.TrimSpace(provider), "huggingface") {
 		return "HF_API_KEYS"
