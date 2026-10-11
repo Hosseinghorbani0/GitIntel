@@ -19,7 +19,10 @@ func main() {
 	loadLocalEnv()
 	cacheStore := cache.NewCache(5 * time.Minute)
 	engine := analytics.NewEngine()
-	handler := api.NewHandler(cacheStore, engine)
+	llmConfig, _ := llm.LoadConfigFromEnv()
+	credentials := llm.NewCredentialManager(llm.CredentialEnvName(llmConfig.Provider))
+	credentials.Load()
+	handler := api.NewHandlerWithCredentials(cacheStore, engine, credentials)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", handler.Health)
@@ -31,7 +34,9 @@ func main() {
 	mux.HandleFunc("/api/github/profile/", handler.Profile)
 	mux.HandleFunc("/api/github/repos/", handler.Repositories)
 	mux.HandleFunc("/api/llm/status", llm.HandleStatus)
-	mux.HandleFunc("/api/llm/test", llm.HandleTest)
+	mux.HandleFunc("/api/llm/test", func(w http.ResponseWriter, r *http.Request) {
+		llm.HandleTestWithManager(w, r, credentials)
+	})
 
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
