@@ -834,6 +834,10 @@
 .signal-evidence-count strong { color: var(--text-primary); font: 11px var(--font-mono); }
 .evidence-list { display: grid; gap: 5px; margin: 8px 0 0; padding: 0; list-style: none; }
 .evidence-list li { overflow: hidden; padding-inline-start: 9px; border-inline-start: 2px solid #537760; color: #c1cec5; font-size: 9px; line-height: 1.65; text-overflow: ellipsis; }
+.signal-repositories { align-items: center; }
+.signal-repositories .signal-repository-label { padding: 0; border: 0; color: var(--text-muted); }
+.signal-repositories a, .signal-repositories > span:not(.signal-repository-label) { padding: 2px 5px; border: 1px solid #303c36; border-radius: 3px; color: var(--accent); font-size: 8px; text-decoration: none; }
+.signal-repositories a:hover { border-color: var(--accent-strong); }
 .quiet-empty { color: var(--text-muted); font-size: 10px; }
 .signal-limitations { margin-top: 9px; color: #c9b37f; font-size: 9px; }
 .signal-limitations summary { width: fit-content; cursor: pointer; }
