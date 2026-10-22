@@ -2,11 +2,12 @@ import type { AnalysisResult, ApiResponse } from '../types'
 
 const API_BASE = '/api'
 
-export async function analyzeProfile(username: string, token = ''): Promise<AnalysisResult> {
+export async function analyzeProfile(username: string, token = '', signal?: AbortSignal): Promise<AnalysisResult> {
   const response = await fetch(`${API_BASE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, token }),
+    signal,
   })
 
   const payload: ApiResponse<AnalysisResult> = await response.json()

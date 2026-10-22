@@ -36,6 +36,150 @@ func TestRepositoryListOptionsExcludeMemberRepositories(t *testing.T) {
 	}
 }
 
+func TestVerifyContributorCountsBoundsRequestsAndUsesLastPage(t *testing.T) {
+	requests := 0
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Query().Get("per_page") != "1" {
+			t.Errorf("expected one contributor per page, got %q", r.URL.Query().Get("per_page"))
+		}
+		w.Header().Set("Link", "<"+server.URL+r.URL.Path+"?per_page=1&page=3>; rel=\"last\"")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"login":"contributor"}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	repos := []Repository{
+		{FullName: "octocat/one"},
+		{FullName: "octocat/two"},
+		{FullName: "octocat/three"},
+		{FullName: "octocat/fork", Fork: true},
+		{FullName: "octocat/four"},
+		{FullName: "octocat/five"},
+		{FullName: "octocat/six"},
+	}
+	got, err := client.VerifyContributorCounts(context.Background(), repos, 100)
+	if err != nil {
+		t.Fatalf("verify contributor counts: %v", err)
+	}
+	if requests != 5 {
+		t.Fatalf("expected at most five contributor requests for original repositories, got %d", requests)
+	}
+	verified := 0
+	for _, repo := range got {
+		if repo.Fork {
+			if repo.ContributorsCheckAttempted {
+				t.Fatal("fork repository should not be checked")
+			}
+			continue
+		}
+		if repo.ContributorsStatus == ContributorsVerified {
+			verified++
+			if repo.ContributorsCount != 3 || !repo.ContributorsCheckAttempted {
+				t.Fatalf("expected verified count from last page, got %+v", repo)
+			}
+		}
+	}
+	if verified != 5 {
+		t.Fatalf("expected five verified original repositories, got %d", verified)
+	}
+}
+
+func TestVerifyContributorCountsReturnsEndpointErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "upstream failure", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	_, err = client.VerifyContributorCounts(context.Background(), []Repository{{FullName: "octocat/project"}}, 1)
+	if err == nil {
+		t.Fatal("expected contributor endpoint failure to be returned")
+	}
+}
+
+func TestVerifyOpenIssuePullRequestCountsSeparatesBoundedSample(t *testing.T) {
+	requests := 0
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Query().Get("per_page") != "1" || r.URL.Query().Get("state") != "open" {
+			t.Errorf("expected one open pull request per page, got query %q", r.URL.RawQuery)
+		}
+		w.Header().Set("Link", "<"+server.URL+r.URL.Path+"?page=3&per_page=1&state=open>; rel=\"last\"")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"number":1}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	repos := []Repository{
+		{FullName: "octocat/one", OpenIssues: 5},
+		{FullName: "octocat/two", OpenIssues: 5},
+		{FullName: "octocat/three", OpenIssues: 5},
+		{FullName: "octocat/fork", OpenIssues: 5, Fork: true},
+		{FullName: "octocat/four", OpenIssues: 5},
+		{FullName: "octocat/five", OpenIssues: 5},
+		{FullName: "octocat/six", OpenIssues: 5},
+	}
+	got, err := client.VerifyOpenIssuePullRequestCounts(context.Background(), repos, 100)
+	if err != nil {
+		t.Fatalf("verify issue and pull request counts: %v", err)
+	}
+	if requests != 5 {
+		t.Fatalf("expected at most five pull request requests for original repositories, got %d", requests)
+	}
+	verified := 0
+	for _, repo := range got {
+		if repo.Fork {
+			if repo.PullRequestCountCheckAttempted {
+				t.Fatal("fork repository should not be checked")
+			}
+			continue
+		}
+		if repo.PullRequestCountStatus == PullRequestCountsVerified {
+			verified++
+			if repo.OpenPullRequests != 3 || repo.OpenIssuesCount != 2 || !repo.PullRequestCountCheckAttempted {
+				t.Fatalf("expected separate issue/PR counts based on total and last page, got %+v", repo)
+			}
+		}
+	}
+	if verified != 5 {
+		t.Fatalf("expected five verified original repositories, got %d", verified)
+	}
+}
+
+func TestVerifyOpenIssuePullRequestCountsRejectsInconsistentTotal(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Link", "<"+r.URL.Path+"?page=3&per_page=1&state=open>; rel=\"last\"")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"number":1}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithBaseURL(server.Client(), server.URL, "")
+	if err != nil {
+		t.Fatalf("create GitHub client: %v", err)
+	}
+	_, err = client.VerifyOpenIssuePullRequestCounts(context.Background(), []Repository{{
+		FullName: "octocat/project", OpenIssues: 2,
+	}}, 1)
+	if err == nil {
+		t.Fatal("expected inconsistent combined and pull request counts to be rejected")
+	}
+}
+
 func TestGetRepositoriesCapsPaginationAndReportsTruncation(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

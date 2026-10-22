@@ -16,10 +16,12 @@ import (
 )
 
 type Handler struct {
-	cache       *cache.Cache
-	engine      *analytics.Engine
-	client      *gh.Client
-	credentials *llm.LLMCredentialManager
+	cache         *cache.Cache
+	engine        *analytics.Engine
+	client        *gh.Client
+	credentials   *llm.LLMCredentialManager
+	analysisMu    sync.Mutex
+	analysisLoads map[string]*analysisLoadFlight
 }
 
 func NewHandler(cacheStore *cache.Cache, engine *analytics.Engine) *Handler {
@@ -61,6 +63,92 @@ type analyzeResult struct {
 	CollectionWarnings []string            `json:"collection_warnings,omitempty"`
 }
 
+const AnalysisCacheTTL = 30 * time.Minute
+
+type analysisLoadError struct {
+	code string
+	err  error
+}
+
+type analysisLoadFlight struct {
+	done   chan struct{}
+	result analyzeResult
+	err    error
+}
+
+func (e *analysisLoadError) Error() string { return e.err.Error() }
+
+func analysisCacheKey(username string) string {
+	return "analysis:" + strings.ToLower(strings.TrimSpace(username))
+}
+
+func (h *Handler) loadOrFetchAnalysis(ctx context.Context, username string, client githubDataClient) (analyzeResult, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return analyzeResult{}, &analysisLoadError{code: "GITHUB_PROFILE_ERROR", err: errors.New("GitHub username is required")}
+	}
+	key := analysisCacheKey(username)
+	var result analyzeResult
+	if h.cache.Get(key, &result) {
+		return result, nil
+	}
+	h.analysisMu.Lock()
+	if flight := h.analysisLoads[key]; flight != nil {
+		h.analysisMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return analyzeResult{}, ctx.Err()
+		case <-flight.done:
+			return flight.result, flight.err
+		}
+	}
+	if h.cache.Get(key, &result) {
+		h.analysisMu.Unlock()
+		return result, nil
+	}
+	if h.analysisLoads == nil {
+		h.analysisLoads = make(map[string]*analysisLoadFlight)
+	}
+	flight := &analysisLoadFlight{done: make(chan struct{})}
+	h.analysisLoads[key] = flight
+	h.analysisMu.Unlock()
+
+	flight.result, flight.err = h.fetchAnalysis(ctx, username, client)
+	h.analysisMu.Lock()
+	delete(h.analysisLoads, key)
+	close(flight.done)
+	h.analysisMu.Unlock()
+	return flight.result, flight.err
+}
+
+func (h *Handler) fetchAnalysis(ctx context.Context, username string, client githubDataClient) (analyzeResult, error) {
+	profile, repos, _, profileErr, reposErr := fetchGitHubData(ctx, client, username, false)
+	if profileErr != nil {
+		return analyzeResult{}, &analysisLoadError{code: "GITHUB_PROFILE_ERROR", err: profileErr}
+	}
+	if reposErr != nil {
+		return analyzeResult{}, &analysisLoadError{code: "GITHUB_REPO_ERROR", err: reposErr}
+	}
+	analysis := h.engine.Analyze(*profile, repos)
+	result := analyzeResult{
+		Profile:  *profile,
+		Repos:    repos,
+		Analysis: analysis,
+		Evidence: llm.BuildLLMContext(*profile, repos, analysis),
+	}
+	h.cache.Set(analysisCacheKey(username), result)
+	return result, nil
+}
+
+func writeAnalysisLoadError(w http.ResponseWriter, err error) {
+	var loadErr *analysisLoadError
+	if errors.As(err, &loadErr) {
+		writeError(w, githubErrorStatus(loadErr.err), loadErr.code, formatError(loadErr.err))
+		return
+	}
+	writeError(w, http.StatusBadGateway, "ANALYSIS_LOAD_FAILED", "Profile analysis could not be loaded.")
+}
+
 type githubDataClient interface {
 	GetProfile(context.Context, string) (*gh.UserProfile, error)
 	GetRepositories(context.Context, string) ([]gh.Repository, error)
@@ -68,10 +156,12 @@ type githubDataClient interface {
 }
 
 type githubOptionalCheckLimits struct {
-	readmes   int
-	releases  int
-	testing   int
-	languages int
+	readmes      int
+	releases     int
+	testing      int
+	contributors int
+	pullRequests int
+	languages    int
 }
 
 const githubCoreAndReserveBudget = 10
@@ -84,6 +174,10 @@ func optionalCheckLimits(remaining int) githubOptionalCheckLimits {
 	budget -= limits.releases
 	limits.testing = min(budget, 5)
 	budget -= limits.testing
+	limits.contributors = min(budget, 5)
+	budget -= limits.contributors
+	limits.pullRequests = min(budget, 5)
+	budget -= limits.pullRequests
 	limits.languages = min(budget, 10)
 	return limits
 }
@@ -165,7 +259,10 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "GitHub username is required.")
 		return
 	}
-	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
+	client := h.client
+	if token := strings.TrimSpace(req.Token); token != "" {
+		client = gh.NewClientFromToken(token)
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	profile, repos, limit, profileErr, reposErr := fetchGitHubData(ctx, client, username, true)
@@ -193,6 +290,22 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 			repos = testingRepos
 		}
 	}
+	if len(repos) > 0 && checkLimits.contributors > 0 {
+		contributorRepos, contributorErr := client.VerifyContributorCounts(ctx, repos, checkLimits.contributors)
+		if contributorErr != nil {
+			collectionWarnings = append(collectionWarnings, "Contributor counts could not be verified; collaboration evidence remains limited.")
+		} else {
+			repos = contributorRepos
+		}
+	}
+	if len(repos) > 0 && checkLimits.pullRequests > 0 {
+		pullRequestRepos, pullRequestErr := client.VerifyOpenIssuePullRequestCounts(ctx, repos, checkLimits.pullRequests)
+		if pullRequestErr != nil {
+			collectionWarnings = append(collectionWarnings, "Open issue and pull request counts could not be separated; the combined counts remain available.")
+		} else {
+			repos = pullRequestRepos
+		}
+	}
 	if len(repos) > 0 && checkLimits.languages > 0 {
 		languageRepos, languageErr := client.PopulateLanguageBreakdown(ctx, repos, checkLimits.languages)
 		if languageErr != nil {
@@ -204,15 +317,16 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 	if client.RepositoriesTruncated() {
 		collectionWarnings = append(collectionWarnings, "Repository collection was capped at 300 repositories.")
 	}
-	if limit.Remaining <= githubCoreAndReserveBudget {
-		collectionWarnings = append(collectionWarnings, "Optional README, release, testing, and language checks were skipped to preserve the GitHub API quota.")
+	if len(repos) > 0 && limit.Remaining <= githubCoreAndReserveBudget {
+		collectionWarnings = append(collectionWarnings, "Optional README, release, testing, contributor, issue/PR, and language checks were skipped to preserve the GitHub API quota.")
+	} else if len(repos) > 0 && limit.Remaining < githubCoreAndReserveBudget+35 {
+		collectionWarnings = append(collectionWarnings, "Optional README, release, testing, contributor, issue/PR, and language checks were limited by the available GitHub API quota; unchecked data remains unverified.")
 	}
 	analysis := h.engine.Analyze(*profile, repos)
 	evidence := llm.BuildLLMContext(*profile, repos, analysis)
 	evidence.Limitations = append(evidence.Limitations, collectionWarnings...)
 	result := analyzeResult{Profile: *profile, Repos: repos, Analysis: analysis, Evidence: evidence, RateLimit: limit, CollectionWarnings: collectionWarnings}
-	cacheKey := "analysis:" + username
-	h.cache.Set(cacheKey, result)
+	h.cache.Set(analysisCacheKey(username), result)
 	jsonResponse(w, http.StatusOK, response{Success: true, Data: result})
 }
 
@@ -239,11 +353,6 @@ func (h *Handler) Interpret(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_LANGUAGE", "Language must be en or fa.")
 		return
 	}
-	var result analyzeResult
-	if !h.cache.Get("analysis:"+username, &result) {
-		writeError(w, http.StatusNotFound, "ANALYSIS_NOT_FOUND", "Run deterministic profile analysis before requesting an interpretation.")
-		return
-	}
 	if !llm.AnalysisReportsEnabled() {
 		writeError(w, http.StatusServiceUnavailable, "LLM_ANALYSIS_DISABLED", "Deterministic analysis is available. AI interpretation is disabled until a provider is explicitly enabled.")
 		return
@@ -251,6 +360,13 @@ func (h *Handler) Interpret(w http.ResponseWriter, r *http.Request) {
 	cfg, err := llm.LoadConfigFromEnv()
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_LLM_CONFIG", "The LLM provider configuration is invalid.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	result, err := h.loadOrFetchAnalysis(ctx, username, h.client)
+	if err != nil {
+		writeAnalysisLoadError(w, err)
 		return
 	}
 	interpreted, err := llm.GenerateInterpretationWithManager(r.Context(), cfg, result.Evidence, language, h.credentials)
@@ -307,7 +423,7 @@ func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "Username is required.")
 		return
 	}
-	cacheKey := "analysis:" + username
+	cacheKey := analysisCacheKey(username)
 	var result analyzeResult
 	if !h.cache.Get(cacheKey, &result) {
 		writeError(w, http.StatusNotFound, "REPORT_NOT_FOUND", "No cached report available for this username.")
@@ -326,20 +442,23 @@ func (h *Handler) Resume(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Request body is invalid.")
 		return
 	}
-	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "GitHub username is required.")
+		return
+	}
+	client := h.client
+	if token := strings.TrimSpace(req.Token); token != "" {
+		client = gh.NewClientFromToken(token)
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	profile, repos, _, profileErr, reposErr := fetchGitHubData(ctx, client, req.Username, false)
-	if profileErr != nil {
-		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
+	result, err := h.loadOrFetchAnalysis(ctx, username, client)
+	if err != nil {
+		writeAnalysisLoadError(w, err)
 		return
 	}
-	if reposErr != nil {
-		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
-		return
-	}
-	analysis := h.engine.Analyze(*profile, repos)
-	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": analysis.ResumeMarkdown}})
+	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": result.Analysis.ResumeMarkdown}})
 }
 
 func (h *Handler) Portfolio(w http.ResponseWriter, r *http.Request) {
@@ -352,20 +471,46 @@ func (h *Handler) Portfolio(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Request body is invalid.")
 		return
 	}
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "GitHub username is required.")
+		return
+	}
 	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	profile, repos, _, profileErr, reposErr := fetchGitHubData(ctx, client, req.Username, false)
-	if profileErr != nil {
-		writeError(w, githubErrorStatus(profileErr), "GITHUB_PROFILE_ERROR", formatError(profileErr))
+	result, err := h.loadOrFetchAnalysis(ctx, username, client)
+	if err != nil {
+		writeAnalysisLoadError(w, err)
 		return
 	}
-	if reposErr != nil {
-		writeError(w, githubErrorStatus(reposErr), "GITHUB_REPO_ERROR", formatError(reposErr))
+	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": result.Analysis.PortfolioMarkdown}})
+}
+
+func (h *Handler) ProfileReadme(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "POST is required.")
 		return
 	}
-	analysis := h.engine.Analyze(*profile, repos)
-	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": analysis.PortfolioMarkdown}})
+	var req analyzeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Request body is invalid.")
+		return
+	}
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_USERNAME", "GitHub username is required.")
+		return
+	}
+	client := gh.NewClientFromToken(strings.TrimSpace(req.Token))
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	result, err := h.loadOrFetchAnalysis(ctx, username, client)
+	if err != nil {
+		writeAnalysisLoadError(w, err)
+		return
+	}
+	jsonResponse(w, http.StatusOK, response{Success: true, Data: map[string]string{"text": result.Analysis.ProfileReadmeMarkdown}})
 }
 
 func formatError(err error) string {

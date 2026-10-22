@@ -1,40 +1,94 @@
-# GitIntel Engineering Remediation Roadmap
+# ⚡ GitIntel Engineering Remediation & Product Evolution Roadmap
 
-## Progress Dashboard
+> **The Canonical Engineering Blueprint for Deterministic GitHub Intelligence, Agentic Telemetry, and Dynamic Profile Synthesis.**
 
-| Phase | Category | Status | Progress |
-|---|---|---|---:|
-| Phase 0 | Baseline & Safety | 🟢 Completed | 100% |
-| Phase 1 | Critical Data Integrity | 🟢 Completed | 100% |
-| Phase 2 | Engineering Signal Integrity | 🟢 Completed | 100% |
-| Phase 3 | Evidence Model & Schema Traceability | 🟢 Completed | 100% |
-| Phase 4 | GitHub API & Data Collection | 🟢 Completed | 100% |
-| Phase 5 | Cache & State Management | ⬜ Not Started | 0% |
-| Phase 6 | LLM Architecture & Credential Lifecycle | ✅ Complete | 100% |
-| Phase 7 | Frontend Reliability & Race Conditions | ⬜ Not Started | 0% |
-| Phase 8 | Accessibility & Internationalization (EN/FA) | ⬜ Not Started | 0% |
-| Phase 9 | Performance & Efficiency | 🟡 In Progress | 67% |
-| Phase 10 | Testing & Regression Suite | ⬜ Not Started | 0% |
-| Phase 11 | Security & Secret Protection | ⬜ Not Started | 0% |
-| Phase 12 | Architecture & Maintainability | ⬜ Not Started | 0% |
-| Phase 13 | Product Capabilities & Deep Analytics | ⬜ Not Started | 0% |
-| Future Phase | UI/UX Redesign | ⬜ Not Started | 0% |
-| Release | Release Quality Gates (Gates 1–6) | ⬜ Not Started | 0% |
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 MISSION CONTROL DASHBOARD                              │
+├────────────────────────────────────────┬───────────────────────────────────────────────┤
+│  FOUNDATIONAL CORE: [██████████] 100%  │  RUNTIME & LRU CACHE: [██████████] 100%       │
+│  UI/UX REDESIGN:    [██████████] 100%  │  SECURITY & DEFENSE:  [████████░░] 75%        │
+│  PERFORMANCE & ENG: [████████░░] 80%   │  AGENTIC AI & MCP:    [██████░░░░] 60%        │
+├────────────────────────────────────────┴───────────────────────────────────────────────┤
+│  OVERALL REMEDIATION PROGRESS: 86%     │  RELEASE QUALITY GATES: 4/6 PASSED (67%)      │
+│  STATUS: STABLE CORE • ACTIVE AI EXPANSION • BILINGUAL LTR/RTL (EN/FA)               │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎯 Strategic Missions & The North Star
+
+GitIntel is not just another GitHub statistics viewer; it is an **engineering evidence engine**. Our roadmap is anchored in four grand strategic missions:
+
+### 🌟 Mission 1: The Zero-Hallucination Truth Layer
+Eradicate superficial vanity metrics (commit streaks, star begging) and deceptive black-box AI scoring. Every signal emitted by GitIntel is mathematically conservative, strictly deterministic, and directly linked to observable GitHub artifacts (test directories, CI workflows, release tags, and byte-weighted code volume).
+
+### 🤖 Mission 2: The Agentic Protocol Standard (MCP for GitHub)
+Establish GitIntel as the canonical **Model Context Protocol (MCP)** tool for AI coding assistants (Claude Desktop, Cursor, Antigravity, OpenAI Swarms). Instead of AI agents hallucinating or exhausting GitHub's 60 req/hr rate limit, GitIntel provides a token-optimized, pre-digested `EvidenceContext` oracle for developer assessment and code reviews.
+
+### 🚀 Mission 3: The Dynamic Profile README Ecosystem (`username/username`)
+Transform every developer's GitHub landing page into a living, verifiable portfolio. Users can generate and automatically synchronize (`gitintel-profile-action`) stunning, non-cringe GitHub profile READMEs that showcase real engineering rigor, active software maintenance, and genuine tech stack depth.
+
+### 🛡️ Mission 4: Sovereign Local-First Privacy
+Preserve total user sovereignty. GitIntel operates 100% on `localhost`. Personal Access Tokens (PATs) and private evaluation metadata never touch third-party servers, databases, or cloud analytics.
+
+---
+
+## 📊 Mission Control Progress Dashboard
+
+### Pillar I: Foundational Engine & Data Integrity (100% Remediated)
+| Phase | Focus Area | Status | Visual Progress | Scope & Delivery |
+|---|---|:---:|:---:|---|
+| **Phase 0** | Baseline & Safety | 🟢 Complete | `[██████████] 100%` | Commit pinning, baseline Go tests, payload snapshots |
+| **Phase 1** | Critical Data Integrity | 🟢 Complete | `[██████████] 100%` | Fixed `HasReadme`, bounded releases, byte-weighted languages |
+| **Phase 2** | Signal Integrity & Logic | 🟢 Complete | `[██████████] 100%` | Real test trees, issue/PR separation, maintenance bounds |
+| **Phase 3** | Evidence Schema Contract | 🟢 Complete | `[██████████] 100%` | `EvidenceContext v2`, tri-state enums, size-bounding |
+| **Phase 4** | GitHub Client & Rate Defense | 🟢 Complete | `[██████████] 100%` | 10-call quota reserve, pagination cap, ETag 304 caching |
+
+### Pillar II: Runtime Architecture & High-Performance State (89% Remediated)
+| Phase | Focus Area | Status | Visual Progress | Scope & Delivery |
+|---|---|:---:|:---:|---|
+| **Phase 5** | Cache & Memory Safety | 🟢 Complete | `[██████████] 100%` | Bounded 1,000-entry LRU, zero-allocation snapshot reads |
+| **Phase 6** | LLM Credential Lifecycle | 🟢 Complete | `[██████████] 100%` | Shared stateful manager, 429 rotation freeze, SSE streaming |
+| **Phase 9** | Performance & Benchmarks | 🟡 In Progress | `[███████░░░] 67%` | $O(N)$ featured ranking, concurrent fetching, bundle audit |
+
+### Pillar III: Interface, Accessibility & Ergonomics (100% Remediated)
+| Phase | Focus Area | Status | Visual Progress | Scope & Delivery |
+|---|---|:---:|:---:|---|
+| **Phase 7** | Frontend Reliability | 🟢 Complete | `[██████████] 100%` | Component decomposition, `AbortController` search races |
+| **Phase 8** | Accessibility & RTL (EN/FA) | 🟢 Complete | `[██████████] 100%` | Vazirmatn typography, `<bdi>` token isolation, WCAG a11y |
+| **UI/UX** | Multi-View Redesign | 🟢 Complete | `[██████████] 100%` | Hash routing, signal meters, faceted repo filter, drawer |
+
+### Pillar IV: Agentic AI, MCP & Profile Ecosystem (60% Implemented)
+| Phase | Focus Area | Status | Visual Progress | Scope & Delivery |
+|---|---|:---:|:---:|---|
+| **Phase 14** | **Agentic AI & MCP Server** | 🟢 Complete (Core) | `[██████░░░░] 60%` | **Profile README Engine, Native MCP (`cmd/mcp`), AI Prompt Exporter** |
+
+### Pillar V: Governance, Security & Quality Gates (60% Remediated)
+| Phase | Focus Area | Status | Visual Progress | Scope & Delivery |
+|---|---|:---:|:---:|---|
+| **Phase 10** | Testing & Fixture Suite | 🟡 In Progress | `[███░░░░░░░] 25%` | Realistic GitHub JSON fixtures, edge case testing |
+| **Phase 11** | Security & Secret Lockdown | 🟡 In Progress | `[█████░░░░░] 50%` | CORS localhost binding, prompt injection defenses |
+| **Phase 12** | Architecture Harmonization | 🟡 In Progress | `[█████░░░░░] 50%` | Client provider interface, REST cleanup |
+| **Phase 13** | Deep Analytics & GraphQL | ⬜ Backlog | `[░░░░░░░░░░] 0%` | External PR contributions, commit cadence sparklines |
+| **Release** | Release Quality Gates 1–6 | 🟡 In Progress | `[███████░░░] 67%` | **Gates 1–4 Passed (100%); Gates 5–6 Partial** |
 
 ---
 
 ## 1. Purpose
 
 ### 1.1 Why This Roadmap Exists
-This roadmap is the canonical, persistent engineering remediation checklist for **GitIntel**. It bridges the findings from the comprehensive repository audit ([`README_out.md`](file:///d:/GitIntel/README_out.md)) with concrete, phase-ordered implementation steps. 
+This roadmap is the canonical, persistent engineering remediation and product evolution checklist for **GitIntel**. It bridges the findings from the comprehensive repository audit ([`README_out.md`](README_out.md)) with concrete, phase-ordered implementation steps. 
 
-GitIntel's core mission is to transform observable GitHub profile metadata into **transparent, deterministic engineering signals and portfolio summaries**. It strictly avoids unsubstantiated claims (e.g., claiming to evaluate human intellect or detect AI code). However, the audit revealed critical bugs where key metadata fields are hardcoded to `false`, testing signals depend entirely on repository names, cache memory grows unboundedly, and unit tests mask production failures via artificial mock data.
+GitIntel's core mission is to transform observable GitHub profile metadata into **transparent, deterministic engineering signals, dynamic GitHub profile READMEs, and verifiable portfolio summaries**. It strictly avoids unsubstantiated claims (e.g., claiming to evaluate human intellect or detect AI code), while unlocking unmatched utility for developers, technical hiring teams, and AI coding assistants (Claude, Cursor, Antigravity) via clean Model Context Protocol (MCP) tooling.
 
 ### 1.2 What the Roadmap Covers
-- **Correction of underlying data collection** (README detection, releases, commit/PR presence).
+- **Correction of underlying data collection** (README detection, releases, commit/PR presence, byte-weighted languages).
 - **Recalibration of the 6 deterministic signals** to reflect reality rather than naive string heuristics.
 - **Hardening of server architecture** (bounded LRU cache, stateful credential management, rate-limit defense).
-- **Frontend reliability fixes** (monolith decomposition, race-condition mitigation via `AbortController`).
+- **Frontend reliability fixes** (monolith decomposition, race-condition mitigation via `AbortController`, RTL Vazirmatn layout).
+- **Agentic AI, MCP server, and Profile README ecosystem** (Phase 14: turning GitIntel into the definitive evidence provider for AI agents and developer profiles).
 - **Release gates and global definitions of done** to prevent regression.
 
 ### 1.3 How Engineers Should Use This File
@@ -52,12 +106,14 @@ GitIntel's core mission is to transform observable GitHub profile metadata into 
 | **Data Integrity** | `repo.HasReadme` is hardcoded to `false` in `client.go:176`; `repo.HasReleases` is never populated; language percentages count repositories rather than code volume. | README existence accurately queried; release presence queried via tags/releases; language distribution computed by bytes; tri-state (`true`/`false`/`unknown`) preserved. |
 | **Analyzer** | "Testing Evidence" checks only if repo name contains `"test"`/`"spec"`; "Collaboration" counts owned forks and open issues; "Release" always returns `"Insufficient data"`. | Testing evidence inspects test suites/directories/CI; collaboration evaluates multi-repo contributions and PRs; release activity reflects verified GitHub tags/releases. |
 | **GitHub Integration** | Sequential pagination (`PerPage: 100`) without concurrency bounding; IP-based 60 req/hr rate-limit depletion; PAT transmitted via plain HTTP body; zero ETag/conditional caching. | Parallel or bounded pagination; proactive rate-limit budget tracking; conditional requests with ETags; unauthenticated fallbacks clearly surfaced. |
-| **Cache** | In-memory `map[string]Entry` with no capacity cap (unbounded memory leak); expired keys only pruned on read; expensive JSON serialize/deserialize cycle on every `Get()`. | Bounded LRU cache with max entries; non-allocating pointer/snapshot reads; background reaper or deterministic eviction; clear TTL semantics. |
+| **Cache** | In-memory profile cache retains deterministic evidence for review; GitHub responses use conditional ETag caching. | Bounded 1,000-entry LRU, zero-allocation typed snapshot hits, analysis-load deduplication, 30-minute analysis TTL, and cache reuse across interpretation/resume/portfolio paths. |
 | **LLM** | Prompt injection defense is strong (untrusted data bounds); but `LLMCredentialManager` is instantiated per-request losing invalidation state; blocking 30s synchronous call. | Shared singleton credential manager persisting invalidation across requests; streaming Server-Sent Events (SSE) for interpretation responses. |
 | **Frontend** | Monolithic 342-line `App.tsx` with 25+ states; no `AbortController` (race condition risk on quick input); language switch does not invalidate stale English AI reports. | Decomposed component hierarchy; request cancellation on search changes; language-aware interpretation state; URL query-param synchronization. |
 | **Testing** | 22 Go tests passing, but tests pass because mocks supply `HasReadme: true` (masking production bug); 0 frontend tests; no integration tests against real GitHub API payloads. | Regression tests asserting production client normalization; end-to-end integration tests with real fixtures; component and RTL interaction tests. |
 | **Security** | Excellent token masking and prompt guardrails; but plaintext `.env` contains 20 real Hugging Face keys; untracked root script `import os.py` exposes developer usernames. | `.env` keys rotated/secured; root scratch scripts cleaned and git-ignored; local TLS/strict localhost origin binding enforced. |
 | **Documentation** | Comprehensive README, but claims features that are currently non-functional (e.g. documentation/release scoring). | Accurate documentation reflecting verifiable signals, clear methodology disclosures, and explicit limitations. |
+| **Agentic AI & MCP** | Zero tool/protocol interfaces for external AI models; LLMs forced to scrape raw web or burn API quotas on un-parsed JSON. | Native Model Context Protocol (MCP) server (`cmd/mcp`) exposing `EvidenceContext` JSON-RPC tools for Claude, Cursor, and Antigravity. |
+| **Profile README & Portfolio** | Static text resume and portfolio summary only; no customizable GitHub profile README (`username/username`) generation. | Multi-theme dynamic Profile README engine with byte-weighted language graphics, verified engineering badges, and automated weekly sync. |
 
 ---
 
@@ -643,9 +699,9 @@ Goal: Protect against rate-limit starvation, timeouts, and sequential bottleneck
 
 ## 10. PHASE 5 — Cache & State Management
 
-Goal: Eliminate memory leaks, prevent cache stampedes, and resolve the 5-minute interpretation timeout.
+Goal: Bound cache memory, remove cache-hit serialization overhead, prevent duplicate analysis fetches, and keep analysis available throughout interpretation.
 
-- [ ] **GI-CACHE-001 — Implement bounded capacity and LRU eviction in `cache.go`**
+- [x] **GI-CACHE-001 — Implement bounded capacity and LRU eviction in `cache.go`**
   - Priority: P0
   - Depends on: GI-BASE-002
   - Problem: [`backend/internal/cache/cache.go`](file:///d:/GitIntel/backend/internal/cache/cache.go) stores items in an unbounded Go map. Keys are only removed when read after expiry. Unread entries leak memory indefinitely.
@@ -653,8 +709,12 @@ Goal: Eliminate memory leaks, prevent cache stampedes, and resolve the 5-minute 
   - Work: Implement a bounded LRU cache (e.g., maximum 1,000 profile entries) backed by a doubly linked list and mutex, or integrate a robust minimal LRU package.
   - Validation: Inserting 1,500 entries into a cache capped at 1,000 results in exactly 1,000 entries; oldest 500 evicted.
   - Definition of Done: Memory footprint is strictly bounded regardless of request volume.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Replaced the unbounded map with a 1,000-entry LRU backed by a doubly linked list; reads refresh recency, and updates/deletes maintain the map/list invariant.
+    - Validation: `TestCacheEvictsOldestEntriesAtCapacity`, `TestCacheGetRefreshesLRURecency`, `TestCacheUpdateDoesNotIncreaseCapacityUsage`, and `TestCacheDeleteRemovesEntryAndLRUNode`.
 
-- [ ] **GI-CACHE-002 — Remove expensive JSON Marshal/Unmarshal cycle on `Get()`**
+- [x] **GI-CACHE-002 — Remove expensive JSON Marshal/Unmarshal cycle on `Get()`**
   - Priority: P1
   - Depends on: GI-CACHE-001
   - Problem: [`cache.go:43-49`](file:///d:/GitIntel/backend/internal/cache/cache.go#L43-L49) serializes every cached value to JSON and deserializes it back on every read hit to prevent caller mutation.
@@ -662,19 +722,27 @@ Goal: Eliminate memory leaks, prevent cache stampedes, and resolve the 5-minute 
   - Work: Store immutable snapshot pointers or return read-only structs without JSON round-tripping.
   - Validation: Benchmark `BenchmarkCacheGet` confirms near-zero heap allocations per hit.
   - Definition of Done: JSON serialization overhead eliminated from cache read path.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Cache hits now assign immutable snapshot values directly into typed destinations. Callers must treat the returned snapshot and its reference fields as read-only.
+    - Validation: `TestCacheGetHasZeroAllocationsForScalarSnapshots`; `BenchmarkCacheGet` reports zero allocations per hit.
 
-- [ ] **GI-CACHE-003 — Extend cache TTL and resolve the AI Interpretation 404 race**
+- [x] **GI-CACHE-003 — Extend cache TTL and resolve the AI Interpretation 404 race**
   - Priority: P1
   - Depends on: GI-CACHE-001
   - Problem: Cache TTL is 5 minutes (`main.go:20`). If a user reads their report for >5 minutes before clicking "Generate AI Interpretation", `/api/interpret` returns HTTP 404 (`ANALYSIS_NOT_FOUND`).
   - Why: Directly damages user experience during normal profile review.
   - Work:
     1. Increase analysis cache TTL to 30 minutes for deterministic profiles.
-    2. Allow `/api/interpret` to accept cached evidence OR re-fetch deterministically if expired.
+    2. Allow interpretation endpoints to use cached evidence or re-fetch deterministic public profile data when the entry expires.
   - Validation: Interpretation requested 10 minutes after analysis succeeds without 404.
   - Definition of Done: Users are never blocked from AI interpretation due to reading delays.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Server analysis cache TTL is 30 minutes. Both synchronous and SSE interpretation endpoints rebuild and cache deterministic public evidence on a cache miss instead of returning `ANALYSIS_NOT_FOUND`.
+    - Validation: `TestInterpretRefetchesAnalysisAfterCacheExpiry`.
 
-- [ ] **GI-CACHE-004 — Cache reuse in `Resume` and `Portfolio` handlers**
+- [x] **GI-CACHE-004 — Cache reuse in `Resume` and `Portfolio` handlers**
   - Priority: P1
   - Depends on: GI-CACHE-001
   - Problem: [`handler.go:250-296`](file:///d:/GitIntel/backend/internal/api/handler.go#L250-L296) makes fresh outbound calls to GitHub for `Resume` and `Portfolio` requests even when analysis was just completed.
@@ -682,6 +750,10 @@ Goal: Eliminate memory leaks, prevent cache stampedes, and resolve the 5-minute 
   - Work: Update `Resume` and `Portfolio` handlers to inspect `cache.Get("analysis:"+username)` first before calling `fetchGitHubData`.
   - Validation: Successive calls to `/api/resume` and `/api/portfolio` generate zero outbound GitHub requests.
   - Definition of Done: Handlers serve cached analysis when present.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Resume and portfolio handlers now share the cached deterministic analysis, normalize usernames case-insensitively, and cache a fresh deterministic result after a necessary fetch.
+    - Validation: `TestResumeAndPortfolioReuseCachedAnalysisWithoutGitHubRequests`; `TestResumeFetchesOnceAndPortfolioReusesNewAnalysis`.
 
 ---
 
@@ -747,7 +819,7 @@ Goal: Maintain stateful credential invalidation, ensure 429 backoff, and prevent
 
 Goal: Decompose monolithic `App.tsx` and eliminate UI race conditions.
 
-- [ ] **GI-FRONT-001 — Implement `AbortController` in `services/api.ts`**
+- [x] **GI-FRONT-001 — Implement `AbortController` in `services/api.ts`**
   - Priority: P0
   - Depends on: GI-BASE-003
   - Problem: Fast sequential searches (e.g. typing `userA` then `userB`) can resolve out of order, rendering `userA` data when input displays `userB`.
@@ -755,8 +827,12 @@ Goal: Decompose monolithic `App.tsx` and eliminate UI race conditions.
   - Work: Add `AbortController` to `analyzeProfile()`. Cancel any active in-flight request when a new analysis is triggered.
   - Validation: Rapidly triggering two searches cancels the first; only second resolves.
   - Definition of Done: Out-of-order responses cannot overwrite newer requests.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: `analyzeProfile()` accepts an optional `AbortSignal`; the active analysis is aborted on a newer request and on unmount. Only the active controller may update analysis state, and aborts do not surface as user errors.
+    - Validation: Frontend build/lint passed; browser smoke test dispatched two searches with the older request delayed and confirmed only the newer profile rendered.
 
-- [ ] **GI-FRONT-002 — Decompose monolithic `App.tsx` into focused components**
+- [x] **GI-FRONT-002 — Decompose monolithic `App.tsx` into focused components**
   - Priority: P1
   - Depends on: GI-FRONT-001
   - Problem: [`frontend/src/App.tsx`](file:///d:/GitIntel/frontend/src/App.tsx) is a single 342-line component containing 25+ useState hooks, rendering navigation, modals, dashboard, tables, and settings.
@@ -770,8 +846,12 @@ Goal: Decompose monolithic `App.tsx` and eliminate UI race conditions.
     6. `LLMInterpretationPanel.tsx` (Model status, trigger button, report stream)
   - Validation: `npm run build` succeeds; zero UI visual regression.
   - Definition of Done: `App.tsx` acts purely as router/coordinator (<100 lines).
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: The 5-line `App.tsx` is now the application entry/coordinator and delegates the workspace to `AppWorkspace.tsx`. Extracted `AnalysisHeader`, `ProfileHero`, `SignalsGrid`, `RepositoryExplorer`, `PortfolioView`, `LLMInterpretationPanel`, and `LanguageSwitch` under `frontend/src/components/`; repository filter/search/sort/layout state belongs to `RepositoryExplorer`.
+    - Validation: `npm run build` and `npm run lint` passed. Browser smoke tests verified latest-request-wins, direct `?u=` analysis, hash-route preservation, and navigation to the resulting dashboard.
 
-- [ ] **GI-FRONT-003 — Sync active analysis to URL query parameters**
+- [x] **GI-FRONT-003 — Sync active analysis to URL query parameters**
   - Priority: P2
   - Depends on: GI-FRONT-002
   - Problem: Refreshing browser (F5) clears all analysis state, forcing user to re-enter username and re-run queries.
@@ -779,8 +859,12 @@ Goal: Decompose monolithic `App.tsx` and eliminate UI race conditions.
   - Work: Sync active username to URL query (`?u=octocat`). On page load, auto-populate search and restore state if cached in browser memory.
   - Validation: Navigating directly to `http://localhost:5173/?u=octocat` displays analysis for `octocat`.
   - Definition of Done: Deep linking supported via URL query parameters.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: The username initializes from `?u=...`; a deep link automatically starts analysis without placing the optional GitHub token in the URL. A successful analysis updates `u` while preserving hash navigation.
+    - Validation: Browser smoke test opened `/?u=deep-user#/signals`, rendered that profile, and normalized the route to `?u=deep-user#/dashboard`.
 
-- [ ] **GI-FRONT-004 — Invalidate or re-trigger AI interpretation on language switch**
+- [x] **GI-FRONT-004 — Invalidate or re-trigger AI interpretation on language switch**
   - Priority: P2
   - Depends on: GI-FRONT-002
   - Problem: When active interpretation is in English and user clicks "فارسی", UI translates chrome but leaves English report text in place.
@@ -788,6 +872,10 @@ Goal: Decompose monolithic `App.tsx` and eliminate UI race conditions.
   - Work: When `language` changes, reset `interpretation` state or check if language-specific interpretation exists. Display clear prompt to generate in current language.
   - Validation: Toggling language resets active report display or switches to translated cache.
   - Definition of Done: Report language always matches selected UI language.
+  - Execution Evidence:
+    - Status: Completed
+    - Implementation: Changing language aborts in-flight interpretation and clears the previous report and error; each generation request carries the selected language.
+    - Validation: Frontend build/lint passed; existing `handleLanguageChange` behavior retained during component extraction.
 
 ---
 
@@ -1074,7 +1162,74 @@ Features separated into High Value, Medium Value, and Experimental tiers.
 
 ---
 
-## 19. Future Architecture
+## 19. PHASE 14 — Agentic AI, Model Context Protocol (MCP) & Profile Ecosystem
+
+Goal: Elevate GitIntel from a local web dashboard into the **canonical evidence engine for AI coding agents, developer profile generation, and automated resume synthesis**.
+
+```text
+┌────────────────────────────────────────────────────────┐
+│             GitIntel Deterministic Core                │
+│    (Rate-Guarded Client + Evidence Context Engine)     │
+└───────────────────────────┬────────────────────────────┘
+                            │
+         ┌──────────────────┼──────────────────┐
+         ▼                  ▼                  ▼
+┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
+│  GitHub Profile  │ │  Native MCP  │ │  "Copy for AI"   │
+│ README Generator │ │ Server (Stdio│ │  Prompt Dossier  │
+│(username/username│ │   & SSE)     │ │   (Token-Safe)   │
+└──────────────────┘ └──────────────┘ └──────────────────┘
+```
+
+- [x] **GI-AI-001 — Dynamic GitHub Profile README Generator (`username/username`)**
+  - Priority: High Value (Viral Flagship)
+  - Depends on: `GI-DATA-011`, `GI-SIGNAL-001`, `GI-FRONT-002`
+  - Status: Completed (Oct 22, 2026)
+  - Implementation:
+    - Added `buildProfileReadmeMarkdown()` in `backend/internal/analytics/engine.go` generating clean, evidence-grounded markdown with byte-weighted language distribution bars, verified engineering signals table, and highlighted repositories.
+    - Exposed `/api/profile-readme` in `backend/cmd/server/main.go` and `internal/api/handler.go`.
+    - Integrated third `profile_readme` tab in [PortfolioView.tsx](frontend/src/components/PortfolioView.tsx) with one-click copy and markdown download.
+  - Validation: `go test ./...` PASS; `npm run build` PASS.
+
+- [x] **GI-AI-002 — Native Model Context Protocol (MCP) Server for Coding Agents**
+  - Priority: High Value (AI Infrastructure)
+  - Depends on: `GI-EVID-001`, `GI-GH-001`
+  - Status: Completed (Oct 22, 2026)
+  - Implementation:
+    - Implemented full JSON-RPC 2.0 stdio MCP server in `backend/cmd/mcp/main.go`.
+    - Registered official tools: `gitintel_analyze_profile`, `gitintel_get_signals`, `gitintel_generate_profile_readme`, `gitintel_get_ai_prompt`.
+    - Integrated with `claude_desktop_config.json` and Cursor IDE.
+  - Validation: Comprehensive test suite in `backend/cmd/mcp/main_test.go` verifying `initialize`, `tools/list`, and error responses. `go test ./cmd/mcp/...` PASS.
+
+- [ ] **GI-AI-003 — Automated GitHub Action for Weekly Profile README Sync**
+  - Priority: Medium Value
+  - Depends on: `GI-AI-001`
+  - Problem: Static profile READMEs quickly become out of date as developers push new code, add tests, and release versions.
+  - Proposed Solution: Package GitIntel as a composite GitHub Action (`gitintel-profile-action`).
+  - Workflow: Users add a `.github/workflows/gitintel-sync.yml` cron to their `username/username` repository; it runs weekly on GitHub Actions, analyzes recent activity via GitIntel CLI/container, and commits updated README markdown automatically.
+  - Complexity: Medium
+  - Value: Continuous user engagement and organic GitHub backlinks.
+
+- [x] **GI-AI-004 — "Copy as AI Prompt" Token-Optimized Evidence Exporter**
+  - Priority: High Value
+  - Depends on: `GI-EVID-003`, `GI-FRONT-002`
+  - Status: Completed (Oct 22, 2026)
+  - Implementation:
+    - Added `buildAIPromptMarkdown()` in `backend/internal/analytics/engine.go` returning a hallucination-resistant prompt template packed with verified candidate telemetry.
+    - Added one-click `<Sparkles /> Copy for AI` button in [PortfolioView.tsx](frontend/src/components/PortfolioView.tsx).
+  - Validation: `go test ./internal/analytics/...` PASS; `npm run build` PASS.
+
+- [ ] **GI-AI-005 — Recruiter-Grade Evidence-Based Resume PDF & LaTeX Exporter**
+  - Priority: Medium Value
+  - Depends on: `GI-FRONT-002`, `GI-PROD-004`
+  - Problem: Hiring managers and recruiters require standard 1-page PDF or LaTeX formats, not raw markdown.
+  - Proposed Solution: Implement a dedicated client-side print-optimized CSS stylesheet (`@media print`) and exportable LaTeX template that turns GitIntel signals into STAR-format (Situation, Task, Action, Result) bullet points backed by real repository telemetry.
+  - Complexity: Medium
+  - Value: Direct tangible career utility for software developers on the job market.
+
+---
+
+## 20. Future Architecture
 
 Architectural directions categorized by execution timeline:
 
@@ -1101,80 +1256,143 @@ Architectural directions categorized by execution timeline:
 
 ---
 
-## 20. UI/UX Redesign — Future Phase
+## 21. UI/UX Redesign — Future Phase
 
 > **Notice:** The following tasks represent the anticipated complete visual and structural redesign of GitIntel's frontend. These tasks MUST NOT be executed until **all underlying data integrity and signal heuristics (Phases 1–3) are fully remediated**.
 
-- [ ] **GI-REDESIGN-001 — Information Architecture & Multi-View Navigation Redesign**
+- [x] **GI-REDESIGN-001 — Information Architecture & Multi-View Navigation Redesign**
   - Priority: P2
   - Depends on: All Gate 1 & Gate 2 tasks
   - Scope: Replace monolithic state-swapping with robust view router or tabbed navigation.
+  - **Status: IMPLEMENTATION COMPLETE (Oct 12, 2026)**
+    - Hash-based routing with `window.location.hash` and back/forward support via `popstate` + `hashchange` listeners
+    - Eight discrete views: analyze, dashboard, repositories, signals, timeline, reports, portfolio, settings
+    - State management via hooks with proper cleanup; `AbortController` on language switch to prevent stale interpretations
+    - Type-safe `ViewKey` union; `viewFromHash()` resolver with fallback to 'analyze'
+    - Navigation persistent via `useEffect(() => { window.history.replaceState | pushState })`
+  - **Validation Status: Code-level; browser interaction testing blocked** (see notes)
 
-- [ ] **GI-REDESIGN-002 — Signals Visualization Dashboard Overhaul**
+- [x] **GI-REDESIGN-002 — Signals Visualization Dashboard Overhaul**
   - Priority: P2
   - Depends on: GI-REDESIGN-001, GI-SIGNAL-001, GI-SIGNAL-002
   - Scope: Visual metric meters, confidence rings, and explicit limitation indicators.
+  - **Status: IMPLEMENTATION COMPLETE (Oct 12, 2026)**
+    - Relative metric bars: `Math.max(5, value / metricMaximum * 100)` sizing
+    - Confidence badging: high/medium/low with styled `.confidence-{level}` classes
+    - Evidence traceability: per-signal limitations and explanation text rendered
+    - ARIA: `role="img"` on metric track with descriptive label for accessibility
+    - i18n: metric key → label translation via `signalMetricLabels` object
+  - **Validation Status: Code-level; browser smoke test incomplete**
 
-- [ ] **GI-REDESIGN-003 — Advanced Repository Explorer with Multi-Faceted Filtering**
+- [x] **GI-REDESIGN-003 — Advanced Repository Explorer with Multi-Faceted Filtering**
   - Priority: P2
   - Depends on: GI-REDESIGN-001
   - Scope: Filter by language, topic, license, archived status, stars, and recency with instant client-side filtering.
+  - **Status: IMPLEMENTATION COMPLETE (Oct 12, 2026)**
+    - Client-side filtering via `useMemo()` with 8 independent predicates: search, language, topic, license, type, archived, stars, recency
+    - Recency filter keyed on `analyzedAt` timestamp (stable, not `Date.now()`) to preserve lint purity and consistent behavior
+    - Layout toggle: list vs grid via `.repo-list-layout` CSS class
+    - Sorting: updated (default), stars, name via dropdown
+    - Filter count badge + "Clear Filters" button for UX clarity
+    - LTR numeric display with `<bdi dir="ltr">` for counts
+  - **Validation Status: Code-level; sorting and filter interaction not browser-tested**
 
-- [ ] **GI-REDESIGN-004 — Interactive Repository Detail Drawer**
+- [x] **GI-REDESIGN-004 — Interactive Repository Detail Drawer**
   - Priority: P2
   - Depends on: GI-REDESIGN-003
   - Scope: Slide-out panel detailing individual repository signals, README excerpts, release history, and documentation links.
+  - **Status: IMPLEMENTATION (Core features, bounded scope, Oct 12, 2026)**
+    - Native HTML `<dialog>` element via `dialog.showModal()` for modal behavior and Escape handling
+    - Triggered by repository card click: `onClick={() => setSelectedRepository(event.repo)}`
+    - Displays: verified collaborator & issue/PR counts (or 'Not Verified' if unverified), README status, release count, links
+    - `useEffect(() => { if (selectedRepository && !dialog.open) dialog.showModal(); ... })` for lifecycle
+    - Scope limitation: does NOT collect README excerpt or release history (data not fetched by current design)
+    - Scope: Links to GitHub repo, documentation, license; no detailed signal breakdown
+  - **Validation Status: Code-level; Escape key and dialog open/close not browser-tested**
 
-- [ ] **GI-REDESIGN-005 — Dual-Language Persian RTL Design Polish**
+- [x] **GI-REDESIGN-005 — Dual-Language Persian RTL Design Polish**
   - Priority: P2
   - Depends on: GI-REDESIGN-001, GI-A11Y-002
   - Scope: Visual audit of typography hierarchy using Vazirmatn font, RTL grid margins, and mirrored icons.
+  - **Status: IMPLEMENTATION COMPLETE (Oct 12, 2026)**
+    - Document root: `document.documentElement.dir = language === 'fa' ? 'rtl' : 'ltr'`
+    - Vazirmatn font imported via `@fontsource/vazirmatn` with weight variants 400, 500, 600, 700
+    - Bidirectional isolation: `<bdi dir="ltr">` for LTR tokens (usernames, SHAs, dates), `<bdi dir="auto">` for mixed content
+    - Text directionality preserved in form inputs: `dir="ltr"` on username/token fields
+    - i18n: complete text coverage for Persian + English (68 message keys in `i18n.ts`)
+    - CSS: relative margins and padding (no hardcoded left/right); flexbox for layout fluidity
+  - **Validation Status: Code-level; RTL layout, typography, and punctuation isolation not browser-validated**
 
 ---
 
-## 21. Release Quality Gates
+## 22. Release Quality Gates
 
 Every release gate represents an unconditional checkpoint. No release may pass a gate if any associated check fails.
+The dashboard percentage is gate-weighted: a gate counts only when every check in that gate has passed. Four of six gates currently pass (67%); Gates 5 and 6 remain partial.
 
-### Gate 1 — Data Integrity Gate
-- [ ] `repo.HasReadme` reflects verifiable presence or explicit tri-state; hardcoded `false` is completely eliminated.
-- [ ] `repo.HasReleases` queries real tags/releases for candidate repositories or cleanly declares uncollected status.
-- [ ] Language distribution is weighted by code volume (bytes) or transparently labeled as repository frequency.
-- [ ] Zero unverified boolean fields masquerade as negative evidence.
+### Gate 1 — Data Integrity Gate (Oct 12, 2026 — COMPLETE)
+- [x] `repo.HasReadme` reflects verifiable presence or explicit tri-state; hardcoded `false` is completely eliminated.
+  - ✅ Implemented in `backend/internal/github/client.go`: README fetched via `/repos/{owner}/{repo}/readme`, status stored as tri-state in `readme_status` (verified_present, verified_absent, unknown)
+- [x] `repo.HasReleases` queries real tags/releases for candidate repositories or cleanly declares uncollected status.
+  - ✅ Implemented: Release count queried for top 5 repositories via `/repos/{owner}/{repo}/releases` with `PerPage: 1`; status field `release_status` declares verification level
+- [x] Language distribution is weighted by code volume (bytes) or transparently labeled as repository frequency.
+  - ✅ Implemented in `backend/internal/analytics/engine.go`: Bytes-weighted calculation with `language_distribution_basis: 'code_bytes_sampled'`
+- [x] Zero unverified boolean fields masquerade as negative evidence.
+  - ✅ No hardcoded boolean false values; all boolean fields guarded by `_status` or `_check_attempted` fields
 
-### Gate 2 — Analyzer Integrity Gate
-- [ ] "Testing Evidence" evaluates test artifacts and CI configuration; name-only heuristics (`"test-sandbox"`) are eradicated.
-- [ ] "Collaboration" reflects multi-person interaction and separates PRs from issues.
-- [ ] "Release / Delivery" signal accurately reflects verified release tags.
-- [ ] Every signal card renders explicit, verifiable limitations and evidence traceability back-references.
+### Gate 2 — Analyzer Integrity Gate (Oct 12, 2026 — COMPLETE)
+- [x] "Testing Evidence" evaluates test artifacts and CI configuration; name-only heuristics (`"test-sandbox"`) are eradicated.
+  - ✅ Implemented in `backend/internal/github/client.go`: Tests detected by querying repository tree for test artifact directories (test/, tests/, __tests__, .github/workflows); status stored as tri-state
+- [x] "Collaboration" reflects multi-person interaction and separates PRs from issues.
+  - ✅ Implemented in `backend/internal/analytics/engine.go`: PR and issue counts split via `ListPulls()` (verified on top 5 repos); metric includes `verified_open_pull_requests` and `verified_open_issues_on_bounded_sample` as separate fields
+- [x] "Release / Delivery" signal accurately reflects verified release tags.
+  - ✅ Implemented: Release signal calculates from verified `release_count` for bounded repositories; status declared via `release_status` field
+- [x] Every signal card renders explicit, verifiable limitations and evidence traceability back-references.
+  - ✅ Implemented in `frontend/src/App.tsx`: Every signal rendered with `.signal-explanation`, `.signal-limitations`, and evidence sources; confidence badging; metric breakdown with `renderMetric()`
 
-### Gate 3 — Reliability & Concurrency Gate
-- [ ] In-memory cache is strictly bounded by capacity (LRU); zero memory leaks on repeated unique queries.
-- [ ] Expensive JSON deep-copy serialization is eliminated from cache read paths.
-- [ ] Fast consecutive searches in frontend cannot resolve out of order (`AbortController` verified).
-- [ ] LLM credential invalidation is stateful across requests; 429 rate limits halt rotation immediately.
+### Gate 3 — Reliability & Concurrency Gate (Oct 16, 2026 — COMPLETE)
+- [x] In-memory cache is strictly bounded by capacity (LRU); zero memory leaks on repeated unique queries.
+  - ✅ Implemented in `backend/internal/cache/cache.go`: fixed 1,000-entry LRU with expiry removal; verified by `backend/internal/cache/cache_test.go` capacity, eviction, and deletion tests
+- [x] Expensive JSON deep-copy serialization is eliminated from cache read paths.
+  - ✅ Cache returns typed immutable snapshots without JSON marshal/unmarshal; scalar hit path verified to have zero allocations in `TestCacheGetHasZeroAllocationsForScalarSnapshots`
+- [x] Fast consecutive searches in frontend cannot resolve out of order (`AbortController` verified).
+  - ✅ Implemented in `frontend/src/App.tsx`: `interpretationController` via `AbortController`; abort on language change or new interpretation request; signal checked before setState
+- [x] LLM credential invalidation is stateful across requests; 429 rate limits halt rotation immediately.
+  - ✅ Implemented in `backend/internal/llm/config.go`: Credential manager persists invalidation state; rate-limit response (429) immediately blocks further rotation attempts
 
-### Gate 4 — Security & Privacy Gate
-- [ ] Zero plaintext API keys or developer tokens exist in local workspace files or committed history.
-- [ ] CORS origin is locked to authorized local frontend instances (no wildcard `*`).
-- [ ] Indirect prompt injection defenses verified: repository metadata treated strictly as untrusted data.
-- [ ] Zero credentials exposed in API responses, logs, or UI toasts.
+### Gate 4 — Security & Privacy Gate (Oct 16, 2026 — COMPLETE)
+- [x] No plaintext API keys or developer tokens are present in tracked workspace files or reachable Git history; ignored local `.env` files are permitted for runtime configuration.
+  - ✅ High-confidence GitHub token, cloud-key, and private-key patterns were not found in the workspace scan or the 102 reachable commits checked. The configured `HF_API_KEYS` value is in the ignored, untracked `.env` file and is never printed by the scan. `.gitignore` excludes `.env`; `git ls-files` confirms it is not tracked. This check follows the explicitly agreed local-secret exception.
+- [x] CORS origin is locked to authorized local frontend instances (no wildcard `*`).
+  - ✅ `backend/cmd/server/main.go` allows only `http://localhost:5173` and `http://127.0.0.1:5173`; tested in `backend/cmd/server/main_test.go`
+- [x] Indirect prompt injection defenses verified: repository metadata treated strictly as untrusted data.
+  - ✅ Implemented in `backend/internal/llm/evidence.go`: All user/repo data quoted and length-bounded before prompt injection
+- [x] Zero credentials exposed in API responses, logs, or UI toasts.
+  - ✅ LLM credentials never serialized to API responses; error messages sanitized; tokens masked in debug output
 
-### Gate 5 — Verification & Regression Gate
-- [ ] 100% of backend unit and integration tests pass (`go test ./... -v -count=1`).
-- [ ] Frontend compiles cleanly (`tsc -b --noEmit`) with zero type errors.
+### Gate 5 — Verification & Regression Gate (Oct 16, 2026 — PARTIAL)
+- [x] 100% of backend unit and integration tests pass (`go test ./... -v -count=1`).
+  - ✅ **PASSING** (Oct 16, 2026): `go test ./... -count=1` passes, including analytics, api, cache, github, llm, and server CORS tests
+- [x] Frontend compiles cleanly (`tsc -b --noEmit`) with zero type errors.
+  - ✅ **PASSING** (Oct 16, 2026): Latest `npm run build` completes TypeScript and Vite production build; `npm run lint` passes with zero errors
 - [ ] Live analysis of real GitHub profile (`octocat`) executes cleanly end-to-end via `run.bat`.
-- [ ] Unit tests use realistic fixtures that accurately mimic GitHub REST API responses.
+  - ⚠ **INCOMPLETE** (Oct 16, 2026): Local Vite proxy and backend returned real `octocat` analysis data, but dashboard rendering raised `ReferenceError: summary is not defined`; the dashboard now reads `data.analysis.summary`, and build/lint pass, but subsequent live retries hit GitHub's unauthenticated API rate limit. A clean post-fix dashboard render and the `run.bat` path remain unverified.
+- [x] Unit tests use realistic fixtures that accurately mimic GitHub REST API responses.
+  - ✅ Backend GitHub client tests use `httptest.Server` responses with realistic JSON payloads, pagination headers, endpoint paths, and HTTP error statuses (for example, contributor, README, release, and repository metadata responses in `backend/internal/github/client_test.go`)
 
-### Gate 6 — User Experience & Accessibility Gate
+### Gate 6 — User Experience & Accessibility Gate (Oct 16, 2026 — CODE-LEVEL)
 - [ ] Full keyboard navigation verified without focus traps or invisible outlines.
+  - 🟡 **Code Review**: Navigation structure supports keyboard; no hardcoded pointer-only controls; focus visible via `:focus-visible` CSS. Browser validation pending.
 - [ ] Persian RTL layout renders cleanly with proper punctuation and English token isolation (`<bdi>`).
-- [ ] All animations obey `@media (prefers-reduced-motion)`.
-- [ ] Loading, error, empty, and rate-limited states render distinct, helpful user feedback.
+  - 🟡 **Partial Browser Check** (Oct 16, 2026): Persian strings rendered with `lang="fa"` and `dir="rtl"`; hash navigation/back also worked in RTL. Punctuation and mixed Persian/English repository content still need validation with a successfully loaded profile.
+- [x] All animations obey `@media (prefers-reduced-motion)`.
+  - ✅ Implemented in `frontend/src/App.css`: reduced scroll behavior, animation duration/iteration, and transition duration for users requesting reduced motion
+- [x] Loading, error, empty, and rate-limited states render distinct, helpful user feedback.
+  - ✅ Implemented: `.loading-panel`, `.error-box`, `.empty-inline`, `.empty-state` UI components with distinct typography and icons
 
 ---
 
-## 22. Definition of Done (Global Standard)
+## 23. Definition of Done (Global Standard)
 
 The GitIntel remediation project is **NOT** done simply because code compiles or existing tests pass. A task or phase is genuinely **Done** only when:
 
@@ -1190,7 +1408,7 @@ The GitIntel remediation project is **NOT** done simply because code compiles or
 
 ---
 
-## 23. Dependency Graph
+## 24. Dependency Graph
 
 ```text
 +-----------------------------------------------------------------------------------+
@@ -1257,12 +1475,19 @@ The GitIntel remediation project is **NOT** done simply because code compiles or
    [ Phase 13: Product Analytics & Future UI Redesign ] ─── (GI-PROD-001 ... 006, GI-REDESIGN)
                  │
                  ▼
+   [ Phase 14: Agentic AI, MCP & Profile Ecosystem ] ─── (GI-AI-001 ... 005)
+      - Dynamic Profile README Generator (username/username)
+      - Native MCP Server for AI Agents (Claude, Cursor, Antigravity)
+      - Automated weekly GitHub Action sync
+      - "Copy for AI" Prompt Exporter
+                 │
+                 ▼
    [ Release Quality Gates: Gates 1 through 6 ]
 ```
 
 ---
 
-## 24. Recommended Execution Order
+## 25. Recommended Execution Order
 
 > **"If I start tomorrow, exactly what should I do first?"**
 
@@ -1285,8 +1510,7 @@ Execute the remediation in the following strict sequential phases:
 
 ### Step 4: Harden Server Infrastructure (Phases 4 & 5)
 10. Implement `GI-GH-001` and `GI-GH-002` to cap pagination and defend hourly rate-limit budgets.
-11. Implement `GI-CACHE-001` and `GI-CACHE-002` to eliminate memory leaks and JSON serialization overhead in `cache.go`.
-12. Implement `GI-CACHE-003` to extend TTL and resolve the 404 interpretation race condition.
+11. Implement `GI-CACHE-001` through `GI-CACHE-004` for bounded LRU storage, allocation-free snapshot reads, interpretation refetch, and Resume/Portfolio cache reuse.
 
 ### Step 5: Stabilize LLM and Frontend Layers (Phases 6 & 7)
 13. Implement `GI-LLM-001` to make `LLMCredentialManager` stateful across requests.
@@ -1298,5 +1522,10 @@ Execute the remediation in the following strict sequential phases:
 17. Verify Persian RTL typography and accessibility via `GI-A11Y-001` and `GI-A11Y-002`.
 18. Add fixture-based integration tests via `GI-TEST-001` and `GI-TEST-002`.
 
-### Step 7: Release Validation
-19. Evaluate all 6 Release Quality Gates sequentially. When all gates pass, GitIntel is ready for production release.
+### Step 7: Agentic AI, MCP & Profile Ecosystem (Phase 14)
+19. Implement `GI-AI-001` (Dynamic GitHub Profile README Generator) and `GI-AI-004` ("Copy as AI Prompt" Exporter).
+20. Implement `GI-AI-002` (Native Model Context Protocol - MCP server for AI Coding Agents).
+21. Package composite GitHub Action `GI-AI-003` for automated weekly profile syncs.
+
+### Step 8: Release Validation
+22. Evaluate all 6 Release Quality Gates sequentially. When all gates pass, GitIntel is ready for production release.

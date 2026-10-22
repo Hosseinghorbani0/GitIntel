@@ -38,6 +38,20 @@ const (
 	TestingArtifactsUnverified      TestingArtifactsStatus = "unverified"
 )
 
+type ContributorsStatus string
+
+const (
+	ContributorsVerified   ContributorsStatus = "verified"
+	ContributorsUnverified ContributorsStatus = "unverified"
+)
+
+type PullRequestCountStatus string
+
+const (
+	PullRequestCountsVerified   PullRequestCountStatus = "verified"
+	PullRequestCountsUnverified PullRequestCountStatus = "unverified"
+)
+
 type RateLimitInfo struct {
 	Limit     int
 	Remaining int
@@ -60,40 +74,47 @@ type UserProfile struct {
 }
 
 type Repository struct {
-	Name                  string                 `json:"name"`
-	FullName              string                 `json:"full_name"`
-	Description           string                 `json:"description"`
-	URL                   string                 `json:"url"`
-	Homepage              string                 `json:"homepage"`
-	Stars                 int                    `json:"stars"`
-	Forks                 int                    `json:"forks"`
-	Watchers              int                    `json:"watchers"`
-	OpenIssues            int                    `json:"open_issues"`
-	Language              string                 `json:"language"`
-	LanguageBytes         map[string]int         `json:"-"`
-	TestingStatus         TestingArtifactsStatus `json:"testing_artifacts_status"`
-	TestingArtifacts      []string               `json:"testing_artifacts,omitempty"`
-	TestingCheckAttempted bool                   `json:"testing_artifacts_check_attempted"`
-	Topics                []string               `json:"topics"`
-	CreatedAt             time.Time              `json:"created_at"`
-	UpdatedAt             time.Time              `json:"updated_at"`
-	PushedAt              time.Time              `json:"pushed_at"`
-	DefaultBranch         string                 `json:"default_branch"`
-	License               string                 `json:"license"`
-	Archived              bool                   `json:"archived"`
-	Fork                  bool                   `json:"fork"`
-	Visibility            string                 `json:"visibility"`
-	HasDocs               bool                   `json:"has_docs"`
-	HasPages              bool                   `json:"has_pages"`
-	HasWiki               bool                   `json:"has_wiki"`
-	HasReadme             bool                   `json:"has_readme"`
-	ReadmeStatus          ReadmeStatus           `json:"readme_status"`
-	ReadmeCheckAttempted  bool                   `json:"readme_check_attempted"`
-	HasLicense            bool                   `json:"has_license"`
-	HasReleases           bool                   `json:"has_releases"`
-	ReleaseStatus         ReleaseStatus          `json:"release_status"`
-	ReleaseCount          int                    `json:"release_count"`
-	ReleaseCheckAttempted bool                   `json:"release_check_attempted"`
+	Name                           string                 `json:"name"`
+	FullName                       string                 `json:"full_name"`
+	Description                    string                 `json:"description"`
+	URL                            string                 `json:"url"`
+	Homepage                       string                 `json:"homepage"`
+	Stars                          int                    `json:"stars"`
+	Forks                          int                    `json:"forks"`
+	Watchers                       int                    `json:"watchers"`
+	OpenIssues                     int                    `json:"open_issues"`
+	OpenIssuesCount                int                    `json:"open_issues_count"`
+	OpenPullRequests               int                    `json:"open_pull_requests"`
+	PullRequestCountStatus         PullRequestCountStatus `json:"pull_request_count_status"`
+	PullRequestCountCheckAttempted bool                   `json:"pull_request_count_check_attempted"`
+	Language                       string                 `json:"language"`
+	LanguageBytes                  map[string]int         `json:"-"`
+	TestingStatus                  TestingArtifactsStatus `json:"testing_artifacts_status"`
+	TestingArtifacts               []string               `json:"testing_artifacts,omitempty"`
+	TestingCheckAttempted          bool                   `json:"testing_artifacts_check_attempted"`
+	ContributorsCount              int                    `json:"contributors_count"`
+	ContributorsStatus             ContributorsStatus     `json:"contributors_status"`
+	ContributorsCheckAttempted     bool                   `json:"contributors_check_attempted"`
+	Topics                         []string               `json:"topics"`
+	CreatedAt                      time.Time              `json:"created_at"`
+	UpdatedAt                      time.Time              `json:"updated_at"`
+	PushedAt                       time.Time              `json:"pushed_at"`
+	DefaultBranch                  string                 `json:"default_branch"`
+	License                        string                 `json:"license"`
+	Archived                       bool                   `json:"archived"`
+	Fork                           bool                   `json:"fork"`
+	Visibility                     string                 `json:"visibility"`
+	HasDocs                        bool                   `json:"has_docs"`
+	HasPages                       bool                   `json:"has_pages"`
+	HasWiki                        bool                   `json:"has_wiki"`
+	HasReadme                      bool                   `json:"has_readme"`
+	ReadmeStatus                   ReadmeStatus           `json:"readme_status"`
+	ReadmeCheckAttempted           bool                   `json:"readme_check_attempted"`
+	HasLicense                     bool                   `json:"has_license"`
+	HasReleases                    bool                   `json:"has_releases"`
+	ReleaseStatus                  ReleaseStatus          `json:"release_status"`
+	ReleaseCount                   int                    `json:"release_count"`
+	ReleaseCheckAttempted          bool                   `json:"release_check_attempted"`
 }
 
 type Client struct {
@@ -291,6 +312,115 @@ func (c *Client) VerifyTestingArtifacts(ctx context.Context, repos []Repository,
 		default:
 			result[index].TestingStatus = TestingArtifactsVerifiedAbsent
 		}
+	}
+	return result, nil
+}
+
+func (c *Client) VerifyContributorCounts(ctx context.Context, repos []Repository, maxCandidates int) ([]Repository, error) {
+	result := make([]Repository, len(repos))
+	copy(result, repos)
+	candidates := make([]int, 0, len(result))
+	for i := range result {
+		if result[i].ContributorsStatus == "" {
+			result[i].ContributorsStatus = ContributorsUnverified
+		}
+		if !result[i].Fork {
+			candidates = append(candidates, i)
+		}
+	}
+	if maxCandidates <= 0 {
+		return result, nil
+	}
+	if maxCandidates > 5 {
+		maxCandidates = 5
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := result[candidates[i]], result[candidates[j]]
+		leftScore, rightScore := candidateScore(left), candidateScore(right)
+		if leftScore == rightScore {
+			return left.FullName < right.FullName
+		}
+		return leftScore > rightScore
+	})
+	if len(candidates) > maxCandidates {
+		candidates = candidates[:maxCandidates]
+	}
+	for _, index := range candidates {
+		repo := result[index]
+		parts := strings.SplitN(repo.FullName, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("repository %q has an invalid full name", repo.FullName)
+		}
+		result[index].ContributorsCheckAttempted = true
+		contributors, response, err := c.client.Repositories.ListContributors(ctx, parts[0], parts[1], &gh.ListContributorsOptions{
+			ListOptions: gh.ListOptions{PerPage: 1},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("fetch contributor count for %s: %w", repo.FullName, err)
+		}
+		count := len(contributors)
+		if response != nil && response.LastPage > count {
+			count = response.LastPage
+		}
+		result[index].ContributorsCount = count
+		result[index].ContributorsStatus = ContributorsVerified
+	}
+	return result, nil
+}
+
+func (c *Client) VerifyOpenIssuePullRequestCounts(ctx context.Context, repos []Repository, maxCandidates int) ([]Repository, error) {
+	result := make([]Repository, len(repos))
+	copy(result, repos)
+	candidates := make([]int, 0, len(result))
+	for i := range result {
+		if result[i].PullRequestCountStatus == "" {
+			result[i].PullRequestCountStatus = PullRequestCountsUnverified
+		}
+		if !result[i].Fork {
+			candidates = append(candidates, i)
+		}
+	}
+	if maxCandidates <= 0 {
+		return result, nil
+	}
+	if maxCandidates > 5 {
+		maxCandidates = 5
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := result[candidates[i]], result[candidates[j]]
+		leftScore, rightScore := candidateScore(left), candidateScore(right)
+		if leftScore == rightScore {
+			return left.FullName < right.FullName
+		}
+		return leftScore > rightScore
+	})
+	if len(candidates) > maxCandidates {
+		candidates = candidates[:maxCandidates]
+	}
+	for _, index := range candidates {
+		repo := result[index]
+		parts := strings.SplitN(repo.FullName, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("repository %q has an invalid full name", repo.FullName)
+		}
+		result[index].PullRequestCountCheckAttempted = true
+		pullRequests, response, err := c.client.PullRequests.List(ctx, parts[0], parts[1], &gh.PullRequestListOptions{
+			State:       "open",
+			ListOptions: gh.ListOptions{PerPage: 1},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("fetch open pull request count for %s: %w", repo.FullName, err)
+		}
+		pullRequestCount := len(pullRequests)
+		if response != nil && response.LastPage > pullRequestCount {
+			pullRequestCount = response.LastPage
+		}
+		if pullRequestCount > repo.OpenIssues {
+			return nil, fmt.Errorf("open pull request count for %s exceeds the combined open issue and pull request count", repo.FullName)
+		}
+		result[index].OpenPullRequests = pullRequestCount
+		result[index].OpenIssuesCount = repo.OpenIssues - pullRequestCount
+		result[index].PullRequestCountStatus = PullRequestCountsVerified
 	}
 	return result, nil
 }
@@ -605,27 +735,29 @@ func (c *Client) VerifyCandidateReleases(ctx context.Context, repos []Repository
 
 func normalizeRepository(item *gh.Repository) Repository {
 	repo := Repository{
-		Name:          item.GetName(),
-		FullName:      item.GetFullName(),
-		Description:   item.GetDescription(),
-		URL:           item.GetHTMLURL(),
-		Homepage:      item.GetHomepage(),
-		Stars:         item.GetStargazersCount(),
-		Forks:         item.GetForksCount(),
-		Watchers:      item.GetWatchersCount(),
-		OpenIssues:    item.GetOpenIssuesCount(),
-		Language:      item.GetLanguage(),
-		TestingStatus: TestingArtifactsUnverified,
-		Topics:        item.Topics,
-		CreatedAt:     item.GetCreatedAt().Time,
-		UpdatedAt:     item.GetUpdatedAt().Time,
-		PushedAt:      item.GetPushedAt().Time,
-		DefaultBranch: item.GetDefaultBranch(),
-		Archived:      item.GetArchived(),
-		Fork:          item.GetFork(),
-		Visibility:    item.GetVisibility(),
-		HasPages:      item.GetHasPages(),
-		HasWiki:       item.GetHasWiki(),
+		Name:                   item.GetName(),
+		FullName:               item.GetFullName(),
+		Description:            item.GetDescription(),
+		URL:                    item.GetHTMLURL(),
+		Homepage:               item.GetHomepage(),
+		Stars:                  item.GetStargazersCount(),
+		Forks:                  item.GetForksCount(),
+		Watchers:               item.GetWatchersCount(),
+		OpenIssues:             item.GetOpenIssuesCount(),
+		Language:               item.GetLanguage(),
+		TestingStatus:          TestingArtifactsUnverified,
+		ContributorsStatus:     ContributorsUnverified,
+		PullRequestCountStatus: PullRequestCountsUnverified,
+		Topics:                 item.Topics,
+		CreatedAt:              item.GetCreatedAt().Time,
+		UpdatedAt:              item.GetUpdatedAt().Time,
+		PushedAt:               item.GetPushedAt().Time,
+		DefaultBranch:          item.GetDefaultBranch(),
+		Archived:               item.GetArchived(),
+		Fork:                   item.GetFork(),
+		Visibility:             item.GetVisibility(),
+		HasPages:               item.GetHasPages(),
+		HasWiki:                item.GetHasWiki(),
 	}
 	if item.GetLicense() != nil {
 		repo.License = item.GetLicense().GetName()

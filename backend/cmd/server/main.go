@@ -17,7 +17,7 @@ import (
 
 func main() {
 	loadLocalEnv()
-	cacheStore := cache.NewCache(5 * time.Minute)
+	cacheStore := cache.NewCache(api.AnalysisCacheTTL)
 	engine := analytics.NewEngine()
 	llmConfig, _ := llm.LoadConfigFromEnv()
 	credentials := llm.NewCredentialManager(llm.CredentialEnvName(llmConfig.Provider))
@@ -32,6 +32,7 @@ func main() {
 	mux.HandleFunc("/api/report/", handler.Report)
 	mux.HandleFunc("/api/resume", handler.Resume)
 	mux.HandleFunc("/api/portfolio", handler.Portfolio)
+	mux.HandleFunc("/api/profile-readme", handler.ProfileReadme)
 	mux.HandleFunc("/api/github/profile/", handler.Profile)
 	mux.HandleFunc("/api/github/repos/", handler.Repositories)
 	mux.HandleFunc("/api/llm/status", llm.HandleStatus)
@@ -71,9 +72,13 @@ func loadLocalEnv() {
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		origin := r.Header.Get("Origin")
+		w.Header().Add("Vary", "Origin")
+		if origin == "http://localhost:5173" || origin == "http://127.0.0.1:5173" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

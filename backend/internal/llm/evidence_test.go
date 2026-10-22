@@ -58,8 +58,8 @@ func TestEvidenceSchemaV2BoundsAndPrioritizesSampleWithCollectionStates(t *testi
 			ReadmeStatus:  gh.ReadmeStatusUnverified,
 			ReleaseStatus: gh.ReleaseStatusUnverified,
 			TestingStatus: gh.TestingArtifactsUnverified,
-			Fork:           index%10 == 0,
-			Archived:       index%5 == 0,
+			Fork:          index%10 == 0,
+			Archived:      index%5 == 0,
 		}
 	}
 	repos[499].ReadmeStatus = gh.ReadmeStatusVerifiedPresent
@@ -71,6 +71,14 @@ func TestEvidenceSchemaV2BoundsAndPrioritizesSampleWithCollectionStates(t *testi
 	repos[499].TestingStatus = gh.TestingArtifactsVerifiedPresent
 	repos[499].TestingArtifacts = []string{"tests"}
 	repos[499].TestingCheckAttempted = true
+	repos[499].ContributorsCount = 3
+	repos[499].ContributorsStatus = gh.ContributorsVerified
+	repos[499].ContributorsCheckAttempted = true
+	repos[499].OpenIssues = 3
+	repos[499].OpenIssuesCount = 2
+	repos[499].OpenPullRequests = 1
+	repos[499].PullRequestCountStatus = gh.PullRequestCountsVerified
+	repos[499].PullRequestCountCheckAttempted = true
 	analysis := analytics.NewEngine().Analyze(profile, repos)
 	evidence := BuildLLMContext(profile, repos, analysis)
 
@@ -89,8 +97,23 @@ func TestEvidenceSchemaV2BoundsAndPrioritizesSampleWithCollectionStates(t *testi
 	if !evidence.Repositories.ReadmeVerificationPerformed || !evidence.Repositories.ReleasesRead || !evidence.Repositories.TestingArtifactsInspected {
 		t.Fatal("expected queried collection states to be represented in evidence")
 	}
+	if !evidence.Repositories.ContributorCountsCollected ||
+		evidence.Repositories.ContributorRepositoriesAttempted != 1 ||
+		evidence.Repositories.ContributorRepositoriesVerified != 1 ||
+		evidence.Repositories.Sample[0].ContributorsCount != 3 {
+		t.Fatal("expected contributor collection states and verified counts in evidence")
+	}
+	if !evidence.Repositories.PullRequestCountsCollected ||
+		evidence.Repositories.PullRequestRepositoriesAttempted != 1 ||
+		evidence.Repositories.PullRequestRepositoriesVerified != 1 ||
+		evidence.Repositories.Sample[0].OpenIssuesCount != 2 ||
+		evidence.Repositories.Sample[0].OpenPullRequests != 1 {
+		t.Fatal("expected separated issue/PR collection states and counts in evidence")
+	}
 	if evidence.CollectionParameters.RepositorySampleMaximum != evidenceRepositorySampleLimit ||
-		evidence.CollectionParameters.RepositoryPagesMaximum != 3 {
+		evidence.CollectionParameters.RepositoryPagesMaximum != 3 ||
+		evidence.CollectionParameters.ContributorCandidatesMaximum != 5 ||
+		evidence.CollectionParameters.PullRequestCandidatesMaximum != 5 {
 		t.Fatalf("expected explicit collection parameters, got %#v", evidence.CollectionParameters)
 	}
 	encoded, err := json.Marshal(evidence)
@@ -105,6 +128,10 @@ func TestEvidenceSchemaV2BoundsAndPrioritizesSampleWithCollectionStates(t *testi
 		`"readme_repositories_attempted":1`,
 		`"release_repositories_attempted":1`,
 		`"testing_repositories_attempted":1`,
+		`"contributor_counts_collected":true`,
+		`"contributor_repositories_attempted":1`,
+		`"pull_request_counts_collected":true`,
+		`"pull_request_repositories_attempted":1`,
 	} {
 		if !strings.Contains(string(encoded), field) {
 			t.Fatalf("expected schema field %s in serialized evidence", field)
@@ -127,6 +154,10 @@ func TestEvidenceIncludesExplicitFalseForUnqueriedCollections(t *testing.T) {
 		`"readme_repositories_attempted":0`,
 		`"release_repositories_attempted":0`,
 		`"testing_repositories_attempted":0`,
+		`"contributor_counts_collected":false`,
+		`"contributor_repositories_attempted":0`,
+		`"pull_request_counts_collected":false`,
+		`"pull_request_repositories_attempted":0`,
 	} {
 		if !strings.Contains(string(encoded), field) {
 			t.Fatalf("expected explicit unqueried state %s", field)

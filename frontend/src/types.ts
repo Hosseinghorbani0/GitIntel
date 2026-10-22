@@ -23,6 +23,10 @@ export interface Repository {
   forks: number
   watchers: number
   open_issues: number
+  open_issues_count?: number
+  open_pull_requests?: number
+  pull_request_count_status?: 'verified' | 'unverified'
+  pull_request_count_check_attempted?: boolean
   language: string
   topics: string[]
   created_at: string
@@ -41,6 +45,9 @@ export interface Repository {
   testing_artifacts_status: 'verified_present' | 'verified_absent' | 'unverified'
   testing_artifacts?: string[]
   testing_artifacts_check_attempted: boolean
+  contributors_count?: number
+  contributors_status?: 'verified' | 'unverified'
+  contributors_check_attempted?: boolean
   has_license: boolean
   has_releases: boolean
   release_status?: 'verified_present' | 'verified_absent' | 'unverified'
@@ -106,6 +113,8 @@ export interface Analysis {
   resume_markdown: string
   portfolio_markdown: string
   report_markdown: string
+  profile_readme_markdown?: string
+  ai_prompt_markdown?: string
 }
 
 export interface RateLimitInfo {

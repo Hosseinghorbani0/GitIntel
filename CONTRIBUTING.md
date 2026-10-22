@@ -15,34 +15,35 @@ GitIntel is an open-source, local-first platform designed to transform public Gi
 
 ---
 
-## 2. Help Wanted: High-Priority Areas
+## 2. Help Wanted: High-Priority Open Areas
 
-We actively invite developers, researchers, and technical writers to contribute! Our work is organized into an authoritative roadmap in [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md).
+We actively invite developers, researchers, and open-source contributors to collaborate! Our canonical task backlog is tracked in [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md).
 
-Here are the highest-impact open areas where we need help right now:
+Here are the highest-impact open areas where we welcome Pull Requests:
 
-### A. Release Evidence Remediation (`GI-DATA-007` to `GI-DATA-010`)
-* **Problem**: Currently, `repo.HasReleases` is omitted during repository normalization in `backend/internal/github/client.go:150-179`, leaving the Release/Delivery signal permanently reporting `"Insufficient data"`.
+### A. Dynamic GitHub Profile README Generator (`GI-AI-001`)
+* **Goal**: Build preset markdown & SVG templates for users' `username/username` profile READMEs.
 * **Tasks**:
-  * Implement bounded release queries (check tags/releases only for top candidate repos, max 5, preserving rate limits).
-  * Update the `Repository` struct with `ReleaseStatus` (`verified`, `missing`, `unverified`) or `ReleaseCount`.
-  * Connect `computeReleaseActivity()` in `backend/internal/analytics/engine.go` to reflect verified releases.
+  * Implement theme generators in `backend/internal/analytics/` (Minimalist, Bento Grid, Hacker Terminal).
+  * Expose an endpoint `/api/profile-readme` and integrate a live preview tab in `PortfolioView.tsx`.
 
-### B. Language Byte Volume Weighting (`GI-DATA-011`)
-* **Problem**: Currently, language distribution counts repositories (`counts[repo.Language]++`), which distorts specialization (e.g. 5 small Python helper scripts can outweigh 1 large Go project).
-* **Task**: Query GitHub's `/repos/{owner}/{repo}/languages` endpoint for candidate repositories to aggregate code volume by bytes, with a graceful fallback if rate limits are constrained.
+### B. Native Model Context Protocol (MCP) Server (`GI-AI-002`)
+* **Goal**: Enable AI coding assistants (Claude Desktop, Cursor, Antigravity) to query GitIntel natively via JSON-RPC.
+* **Tasks**:
+  * Build an MCP stdio/SSE server in `backend/cmd/mcp/` exposing `gitintel_analyze_profile` and `gitintel_get_signals`.
+  * Validate with Claude Desktop and Cursor MCP configs.
 
-### C. Engineering Signal Refinement (`GI-SIGNAL-001` to `GI-SIGNAL-003`)
-* **Problem**: Testing signals currently use repository-name heuristics (`test`, `spec`), which can yield false positives. Documentation signals check for `"docs"` substrings in repo descriptions.
-* **Task**: Replace name heuristics with observable indicators: CI workflow file presence (`.github/workflows/*.yml`), test directories (`tests/`, `*_test.go`), and verified GitHub Pages flags (`repo.HasPages`).
+### C. Automated GitHub Action Workflow (`GI-AI-003`)
+* **Goal**: A composite GitHub Action (`gitintel-profile-action`) that runs on a weekly cron in a developer's profile repository to automatically regenerate and commit their `README.md`.
 
-### D. Frontend Modernization & Polish (Phase 7)
-* Decompose monolithic `frontend/src/App.tsx` into reusable components (`ProfileCard`, `SignalsList`, `RepositoryGrid`, `MarkdownExport`).
-* Add `AbortController` support to cancel in-flight API requests when the user rapidly changes usernames.
+### D. "Copy as AI Prompt" Exporter & PDF Resume (`GI-AI-004` & `GI-AI-005`)
+* **Goal**: Give developers one-click prompt templates to feed ChatGPT/Claude, plus print-ready `@media print` CSS for 1-page PDF resumes.
 
-### E. Test Coverage & Fixtures
-* Add frontend component tests using Vitest or React Testing Library.
-* Provide real, sanitized GitHub API JSON fixtures for offline integration testing.
+### E. Multi-Repository External Contribution Mining (`GI-PROD-001`)
+* **Goal**: Query GitHub's GraphQL API (`is:pr author:<username>`) to detect contributions made to external open-source organizations (Kubernetes, React, Linux) beyond owned repositories.
+
+### F. Automated Frontend Tests with Vitest (`GI-TEST-003`)
+* **Goal**: Set up Vitest and React Testing Library in `frontend/` to test component rendering, language switching, and filter predicates.
 
 ---
 

@@ -53,9 +53,11 @@ type Analysis struct {
 	Signals              []Signal               `json:"signals"`
 	FeaturedProjects     []FeaturedProject      `json:"featured_projects"`
 	RepositoryLinks      []string               `json:"repository_links"`
-	ResumeMarkdown       string                 `json:"resume_markdown"`
-	PortfolioMarkdown    string                 `json:"portfolio_markdown"`
-	ReportMarkdown       string                 `json:"report_markdown"`
+	ResumeMarkdown        string                 `json:"resume_markdown"`
+	PortfolioMarkdown     string                 `json:"portfolio_markdown"`
+	ReportMarkdown        string                 `json:"report_markdown"`
+	ProfileReadmeMarkdown string                 `json:"profile_readme_markdown"`
+	AIPromptMarkdown      string                 `json:"ai_prompt_markdown"`
 }
 
 type Engine struct{}
@@ -78,19 +80,21 @@ func (e *Engine) Analyze(profile gh.UserProfile, repos []gh.Repository) Analysis
 	featured := selectFeatured(repos)
 	report := buildReportMarkdown(profile, repos, langs, languageBasis, languageSampleSize, signals, featured)
 	analysis := Analysis{
-		Profile:              profile,
-		Metrics:              metrics,
-		Summary:              buildSummary(profile, repos, langs, languageBasis, languageSampleSize),
-		LanguageDistribution: langs,
-		LanguageBasis:        languageBasis,
-		LanguageSampleSize:   languageSampleSize,
-		Activity:             buildActivityMetrics(repos),
-		Signals:              signals,
-		FeaturedProjects:     featured,
-		RepositoryLinks:      buildRepositoryLinks(featured),
-		ResumeMarkdown:       buildResumeMarkdown(profile, featured),
-		PortfolioMarkdown:    buildPortfolioMarkdown(profile, featured, signals),
-		ReportMarkdown:       report,
+		Profile:               profile,
+		Metrics:               metrics,
+		Summary:               buildSummary(profile, repos, langs, languageBasis, languageSampleSize),
+		LanguageDistribution:  langs,
+		LanguageBasis:         languageBasis,
+		LanguageSampleSize:    languageSampleSize,
+		Activity:              buildActivityMetrics(repos),
+		Signals:               signals,
+		FeaturedProjects:      featured,
+		RepositoryLinks:       buildRepositoryLinks(featured),
+		ResumeMarkdown:        buildResumeMarkdown(profile, featured),
+		PortfolioMarkdown:     buildPortfolioMarkdown(profile, featured, signals),
+		ReportMarkdown:        report,
+		ProfileReadmeMarkdown: buildProfileReadmeMarkdown(profile, featured, signals, langs, languageBasis),
+		AIPromptMarkdown:      buildAIPromptMarkdown(profile, featured, signals, langs),
 	}
 	return analysis
 }
@@ -303,36 +307,63 @@ func computeCollaboration(repos []gh.Repository) Signal {
 	incomingForks := 0
 	originalReposWithIncomingForks := 0
 	issueAndPRCount := 0
+	verifiedIssueCount := 0
+	verifiedPullRequestCount := 0
+	repositoriesWithVerifiedIssuePRCounts := 0
+	contributorsObserved := 0
+	contributorCountsVerified := 0
+	repositoriesWithMultipleContributors := 0
 	var evidenceRepositories []string
+	seenEvidenceRepositories := make(map[string]struct{})
+	addEvidenceRepository := func(repo gh.Repository) {
+		if identifier := repositoryIdentifier(repo); identifier != "" {
+			if _, exists := seenEvidenceRepositories[identifier]; !exists {
+				seenEvidenceRepositories[identifier] = struct{}{}
+				evidenceRepositories = append(evidenceRepositories, identifier)
+			}
+		}
+	}
 	for _, repo := range repos {
 		if repo.Fork {
 			continue
 		}
-		incomingForks += repo.Forks
-		issueAndPRCount += repo.OpenIssues
-		if repo.Forks > 0 {
-			originalReposWithIncomingForks++
-			if identifier := repositoryIdentifier(repo); identifier != "" {
-				evidenceRepositories = append(evidenceRepositories, identifier)
+		if repo.ContributorsStatus == gh.ContributorsVerified {
+			contributorCountsVerified++
+			contributorsObserved += repo.ContributorsCount
+			if repo.ContributorsCount > 1 {
+				repositoriesWithMultipleContributors++
+				addEvidenceRepository(repo)
 			}
 		}
-		if repo.OpenIssues > 0 && repo.Forks == 0 {
-			if identifier := repositoryIdentifier(repo); identifier != "" {
-				evidenceRepositories = append(evidenceRepositories, identifier)
+		incomingForks += repo.Forks
+		issueAndPRCount += repo.OpenIssues
+		if repo.PullRequestCountStatus == gh.PullRequestCountsVerified {
+			repositoriesWithVerifiedIssuePRCounts++
+			verifiedIssueCount += repo.OpenIssuesCount
+			verifiedPullRequestCount += repo.OpenPullRequests
+			if repo.OpenIssuesCount > 0 || repo.OpenPullRequests > 0 {
+				addEvidenceRepository(repo)
 			}
+		}
+		if repo.Forks > 0 {
+			originalReposWithIncomingForks++
+			addEvidenceRepository(repo)
+		}
+		if repo.OpenIssues > 0 && repo.Forks == 0 {
+			addEvidenceRepository(repo)
 		}
 	}
 	level := "Limited"
 	confidence := "Low"
-	evidence := []string{"No multi-person collaboration indicators were observed in the available repository metadata."}
-	if incomingForks >= 2 || issueAndPRCount > 0 {
+	evidence := []string{fmt.Sprintf("No repositories with multiple contributors were observed among %d original repositories with verified contributor counts (%d contributors observed).", contributorCountsVerified, contributorsObserved)}
+	if incomingForks >= 2 || issueAndPRCount > 0 || repositoriesWithMultipleContributors > 0 {
 		level = "Moderate"
 		confidence = "Medium"
-		evidence = []string{fmt.Sprintf("Original repositories show %d incoming forks and %d open issues and pull requests.", incomingForks, issueAndPRCount)}
+		evidence = []string{fmt.Sprintf("Original repositories show %d incoming forks and %d combined open issues and pull requests; bounded checks separated %d open issues from %d open pull requests across %d repositories, with %d repositories showing multiple observed contributors.", incomingForks, issueAndPRCount, verifiedIssueCount, verifiedPullRequestCount, repositoriesWithVerifiedIssuePRCounts, repositoriesWithMultipleContributors)}
 	} else if personalForks > 0 || incomingForks > 0 {
 		evidence = []string{fmt.Sprintf("%d personal forks and %d incoming forks were observed; a single fork alone is not treated as collaboration evidence.", personalForks, incomingForks)}
 	}
-	return Signal{Name: "Collaboration", Level: level, Classification: level, Confidence: confidence, Weight: 15, Value: float64(incomingForks), Metric: map[string]float64{"personal_forked_repositories": float64(personalForks), "incoming_forks_on_original_repositories": float64(incomingForks), "original_repositories_with_incoming_forks": float64(originalReposWithIncomingForks), "open_issues_and_prs": float64(issueAndPRCount), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"Open issue counts from the GitHub repository list combine issues and pull requests.", "Incoming forks indicate external copying, not necessarily direct collaboration; contributors and external pull requests to non-owned repositories require additional API or GraphQL collection."}, Explanation: "Collaboration is inferred conservatively from incoming forks and combined open issue/pull-request counts on original repositories; personal forks are not counted as collaboration."}
+	return Signal{Name: "Collaboration", Level: level, Classification: level, Confidence: confidence, Weight: 15, Value: float64(incomingForks), Metric: map[string]float64{"personal_forked_repositories": float64(personalForks), "incoming_forks_on_original_repositories": float64(incomingForks), "original_repositories_with_incoming_forks": float64(originalReposWithIncomingForks), "open_issues_and_prs": float64(issueAndPRCount), "verified_open_issues_on_bounded_sample": float64(verifiedIssueCount), "verified_open_pull_requests_on_bounded_sample": float64(verifiedPullRequestCount), "repositories_with_verified_issue_pr_counts": float64(repositoriesWithVerifiedIssuePRCounts), "repositories_with_verified_contributor_counts": float64(contributorCountsVerified), "repositories_with_multiple_contributors": float64(repositoriesWithMultipleContributors), "contributors_observed_on_bounded_sample": float64(contributorsObserved), "repositories_total": float64(len(repos))}, Evidence: evidence, Repositories: evidenceRepositories, Limitations: []string{"The repository-list open count combines issues and pull requests; separate issue and pull-request counts are available only for up to 5 high-signal original repositories.", "Contributor counts are collected only for up to 5 high-signal original repositories; external pull requests to non-owned repositories require GraphQL collection.", "Incoming forks indicate external copying, not necessarily direct collaboration; contributor identities and discussion quality are not evaluated."}, Explanation: "Collaboration is inferred conservatively from incoming forks, bounded contributor and issue/pull-request counts, and combined repository-list counts; personal forks are not counted as collaboration."}
 }
 
 func computeDocumentation(repos []gh.Repository) Signal {
@@ -707,3 +738,102 @@ func buildReportMarkdown(profile gh.UserProfile, repos []gh.Repository, langs []
 	}
 	return b.String()
 }
+
+func buildProfileReadmeMarkdown(profile gh.UserProfile, featured []FeaturedProject, signals []Signal, langs []LanguageBucket, basis string) string {
+	var b strings.Builder
+	name := profile.DisplayName
+	if name == "" {
+		name = profile.Username
+	}
+	b.WriteString(fmt.Sprintf("# Hi there, I'm %s 👋\n\n", name))
+	if profile.Bio != "" {
+		b.WriteString(fmt.Sprintf("> %s\n\n", profile.Bio))
+	}
+
+	b.WriteString("### ⚡ Engineering Signals & Verified Telemetry\n\n")
+	b.WriteString("| Engineering Signal | Level | Observable Evidence |\n")
+	b.WriteString("| :--- | :---: | :--- |\n")
+	for _, s := range signals {
+		evidenceStr := strings.Join(s.Evidence, "; ")
+		if evidenceStr == "" {
+			evidenceStr = "Verified metadata"
+		}
+		b.WriteString(fmt.Sprintf("| **%s** | `%s` | %s |\n", s.Name, s.Level, evidenceStr))
+	}
+	b.WriteString("\n")
+
+	if len(langs) > 0 {
+		b.WriteString("### 🛠️ Core Technologies & Codebase Volume\n\n")
+		if basis == "code_bytes_sampled" {
+			b.WriteString("*Calculated by actual code bytes across top repositories:*\n\n")
+		} else {
+			b.WriteString("*Calculated across active repositories:*\n\n")
+		}
+		for _, l := range langs {
+			barLength := int(l.Percentage / 5)
+			if barLength < 1 && l.Percentage > 0 {
+				barLength = 1
+			}
+			if barLength > 20 {
+				barLength = 20
+			}
+			bar := strings.Repeat("█", barLength) + strings.Repeat("░", 20-barLength)
+			b.WriteString(fmt.Sprintf("- **%-14s** `%s` **%.1f%%**\n", l.Name, bar, l.Percentage))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(featured) > 0 {
+		b.WriteString("### 🚀 Highlighted Repositories\n\n")
+		for _, p := range featured {
+			repo := p.Repository
+			badges := ""
+			if repo.HasReadme {
+				badges += " `README`"
+			}
+			if repo.HasReleases {
+				badges += " `Release Tagged`"
+			}
+			if len(p.Why) > 0 {
+				badges += " `★ " + strings.Join(p.Why, "` `★ ") + "`"
+			}
+			desc := repo.Description
+			if desc == "" {
+				desc = "No description provided."
+			}
+			b.WriteString(fmt.Sprintf("- **[%s](%s)** — %s\n", repo.Name, repo.URL, desc))
+			b.WriteString(fmt.Sprintf("  - Tech: **%s** • Stars: ⭐ %d • Forks: 🍴 %d%s\n", repo.Language, repo.Stars, repo.Forks, badges))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("---\n")
+	b.WriteString("<sub>⚡ Profile telemetry verified deterministically by [GitIntel](https://github.com/Hosseinghorbani0/GitIntel) • Local-first, evidence-grounded developer intelligence.</sub>\n")
+	return b.String()
+}
+
+func buildAIPromptMarkdown(profile gh.UserProfile, featured []FeaturedProject, signals []Signal, langs []LanguageBucket) string {
+	var b strings.Builder
+	b.WriteString("You are an elite executive tech recruiter and resume strategist.\n")
+	b.WriteString("Below is 100% verified, observable GitHub engineering telemetry for the developer below, extracted by GitIntel.\n")
+	b.WriteString("Treat this telemetry as factual ground truth about the candidate's actual codebase volume and artifacts:\n\n")
+	b.WriteString(fmt.Sprintf("Candidate: %s (@%s)\n", profile.DisplayName, profile.Username))
+	b.WriteString(fmt.Sprintf("Profile URL: %s\n\n", profile.ProfileURL))
+
+	b.WriteString("=== VERIFIED ENGINEERING SIGNALS ===\n")
+	for _, s := range signals {
+		b.WriteString(fmt.Sprintf("- %s: %s (Evidence: %s)\n", s.Name, s.Level, strings.Join(s.Evidence, "; ")))
+	}
+	b.WriteString("\n=== VERIFIED TECH STACK (BY BYTE VOLUME) ===\n")
+	for _, l := range langs {
+		b.WriteString(fmt.Sprintf("- %s: %.1f%%\n", l.Name, l.Percentage))
+	}
+	b.WriteString("\n=== KEY VERIFIED REPOSITORIES ===\n")
+	for _, p := range featured {
+		b.WriteString(fmt.Sprintf("- %s: %s (Language: %s, Signals: %s, URL: %s)\n", p.Repository.Name, p.Repository.Description, p.Repository.Language, strings.Join(p.Why, ", "), p.Repository.URL))
+	}
+	b.WriteString("\n=== INSTRUCTION ===\n")
+	b.WriteString("Write a high-impact, professional resume technical summary and STAR-format project bullet points tailored for Senior Software Engineer applications. Ground all statements strictly in the verified evidence above. Emphasize actual engineering practices: CI/CD automation, testing artifacts, release cadences, and codebase volume. Do not invent unverified achievements.\n")
+	return b.String()
+}
+

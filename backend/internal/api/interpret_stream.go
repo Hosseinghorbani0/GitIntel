@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"gitintel/backend/internal/llm"
 )
@@ -25,11 +27,6 @@ func (h *Handler) InterpretStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_LANGUAGE", "Language must be en or fa.")
 		return
 	}
-	var result analyzeResult
-	if !h.cache.Get("analysis:"+username, &result) {
-		writeError(w, http.StatusNotFound, "ANALYSIS_NOT_FOUND", "Run deterministic profile analysis before requesting an interpretation.")
-		return
-	}
 	if !llm.AnalysisReportsEnabled() {
 		writeError(w, http.StatusServiceUnavailable, "LLM_ANALYSIS_DISABLED", "Deterministic analysis is available. AI interpretation is disabled until a provider is explicitly enabled.")
 		return
@@ -37,6 +34,13 @@ func (h *Handler) InterpretStream(w http.ResponseWriter, r *http.Request) {
 	cfg, err := llm.LoadConfigFromEnv()
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_LLM_CONFIG", "The LLM provider configuration is invalid.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	result, err := h.loadOrFetchAnalysis(ctx, username, h.client)
+	if err != nil {
+		writeAnalysisLoadError(w, err)
 		return
 	}
 	flusher, ok := w.(http.Flusher)

@@ -167,8 +167,14 @@ func TestAnalyzeGeneratesSignalsAndCopyableOutputs(t *testing.T) {
 			t.Errorf("signal %q must retain classification, observed metric, evidence, and limitations", signal.Name)
 		}
 	}
-	if analysis.ResumeMarkdown == "" || analysis.PortfolioMarkdown == "" || analysis.ReportMarkdown == "" {
-		t.Fatal("resume, portfolio, and report markdown should all be generated")
+	if analysis.ResumeMarkdown == "" || analysis.PortfolioMarkdown == "" || analysis.ReportMarkdown == "" || analysis.ProfileReadmeMarkdown == "" || analysis.AIPromptMarkdown == "" {
+		t.Fatal("resume, portfolio, report, profile readme, and AI prompt markdown should all be generated")
+	}
+	if !strings.Contains(analysis.ProfileReadmeMarkdown, "Engineering Signals") || !strings.Contains(analysis.ProfileReadmeMarkdown, "GitIntel") {
+		t.Fatal("profile readme should contain verified signals and GitIntel attribution")
+	}
+	if !strings.Contains(analysis.AIPromptMarkdown, "VERIFIED ENGINEERING SIGNALS") || !strings.Contains(analysis.AIPromptMarkdown, "INSTRUCTION") {
+		t.Fatal("AI prompt should contain structured verification sections and instructions")
 	}
 	if !strings.Contains(analysis.ReportMarkdown, "Observed metric") || !strings.Contains(analysis.ReportMarkdown, "Limitation:") || !strings.Contains(analysis.ReportMarkdown, "AI authorship") {
 		t.Fatal("deterministic report must retain metrics and explicit limitations")
@@ -229,6 +235,43 @@ func TestCollaborationDoesNotCountPersonalForksAsEvidence(t *testing.T) {
 	}
 	if _, exists := original.Metric["open_issues"]; exists {
 		t.Fatal("combined issue and pull-request count must not use the ambiguous open_issues key")
+	}
+}
+
+func TestCollaborationUsesVerifiedContributorCounts(t *testing.T) {
+	singleContributor := computeCollaboration([]gh.Repository{{
+		Name: "solo", FullName: "octocat/solo", ContributorsCount: 1,
+		ContributorsStatus: gh.ContributorsVerified,
+	}})
+	if singleContributor.Level != "Limited" || singleContributor.Metric["repositories_with_verified_contributor_counts"] != 1 {
+		t.Fatalf("a single verified contributor should not imply multi-person collaboration, got %#v", singleContributor)
+	}
+
+	multiContributor := computeCollaboration([]gh.Repository{{
+		Name: "team-project", FullName: "octocat/team-project", ContributorsCount: 4,
+		ContributorsStatus: gh.ContributorsVerified,
+	}})
+	if multiContributor.Level != "Moderate" ||
+		multiContributor.Metric["repositories_with_multiple_contributors"] != 1 ||
+		multiContributor.Metric["contributors_observed_on_bounded_sample"] != 4 {
+		t.Fatalf("multiple verified contributors should be recorded as collaboration evidence, got %#v", multiContributor)
+	}
+	if len(multiContributor.Repositories) != 1 || multiContributor.Repositories[0] != "octocat/team-project" {
+		t.Fatalf("expected contributor evidence to reference its repository, got %v", multiContributor.Repositories)
+	}
+}
+
+func TestCollaborationExposesSeparatedIssueAndPullRequestCounts(t *testing.T) {
+	signal := computeCollaboration([]gh.Repository{{
+		Name: "active", FullName: "octocat/active", OpenIssues: 5,
+		OpenIssuesCount: 3, OpenPullRequests: 2,
+		PullRequestCountStatus: gh.PullRequestCountsVerified,
+	}})
+	if signal.Metric["open_issues_and_prs"] != 5 ||
+		signal.Metric["verified_open_issues_on_bounded_sample"] != 3 ||
+		signal.Metric["verified_open_pull_requests_on_bounded_sample"] != 2 ||
+		signal.Metric["repositories_with_verified_issue_pr_counts"] != 1 {
+		t.Fatalf("expected separate verified issue/PR counts while retaining combined total, got %#v", signal.Metric)
 	}
 }
 

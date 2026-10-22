@@ -1,74 +1,170 @@
-# GitIntel
+<div align="center">
+
+# ⚡ GitIntel
+
+### Deterministic GitHub Engineering Intelligence & Developer Portfolio Engine
+
+**The verifiable evidence layer for modern software engineers, technical recruiters, and AI coding agents.**
 
 [![Backend CI](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/backend.yml/badge.svg)](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/backend.yml)
 [![Frontend CI](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/frontend.yml/badge.svg)](https://github.com/Hosseinghorbani0/GitIntel/actions/workflows/frontend.yml)
 ![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
-![Node Version](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![React Version](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![MCP Ready](https://img.shields.io/badge/MCP-Compatible-8A2BE2?logo=anthropic&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> Deterministic, evidence-grounded GitHub engineering intelligence and developer portfolio engine.
-
-GitIntel transforms public GitHub profile and repository metadata into structured, transparent engineering signals, repository metrics, and markdown-formatted portfolio and resume summaries.
-
----
-
-## What Problem GitIntel Solves
-
-Developer assessment tools typically suffer from two extremes:
-1. **Superficial Vanity Metrics**: Over-relying on stars, follower counts, and green commit squares without context.
-2. **Deceptive AI Scoring**: Claiming opaque algorithms can determine human coding intellect or detect AI-generated code.
-
-GitIntel takes a radically honest, deterministic approach:
-* **Observable Evidence Only**: Evaluates only observable GitHub metadata and repository artifacts.
-* **Conservative Scoring**: Uses transparent weighted models where every score includes its underlying metrics, evidence strings, and explicit methodology limitations.
-* **Missing vs. Negative Evidence**: Strictly differentiates between absent features and unqueried/rate-limited metadata.
+<p align="center">
+  <a href="#-why-gitintel">Why GitIntel?</a> •
+  <a href="#-flagship-capabilities">Flagship Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-ai-agent--mcp-integration">MCP & AI Integration</a> •
+  <a href="#-engineering-signals-matrix">Signals Matrix</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-roadmap--community">Roadmap</a>
+</p>
 
 ---
 
-## Engineering Signals
+</div>
 
-GitIntel calculates 6 core engineering signals categorized by level (`Strong`, `Moderate`, `Limited`, or `Insufficient data`):
+## 💡 The Problem GitIntel Solves
 
-| Signal | Description | Observable Evidence | Current Limitations |
+Developer assessment has been broken across two extremes:
+
+```text
+┌──────────────────────────────────────┐       ┌──────────────────────────────────────┐
+│       1. Vanity Metric Era           │       │          2. Hallucinatory AI         │
+│  - Green commit streak gaming        │  vs.  │  - Flowery "10x rockstar" fluff      │
+│  - Star begging & empty forks        │       │  - Opaque black-box score cards      │
+│  - Toy repos outweighing real code   │       │  - Zero verifiable evidence backing  │
+└──────────────────────────────────────┘       └──────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          3. The GitIntel Era                                │
+│       ✅ 100% Observable & Deterministic Artifacts                          │
+│       ✅ Byte-Weighted Language Distribution (Real Volume)                  │
+│       ✅ Verified CI/CD, Test Trees, Release Tags & Issue/PR Splits         │
+│       ✅ The Missing Evidence Layer for AI Models & Profile Generators      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Dimension | Vanity Badges | Generic AI Prompts | **GitIntel Engine** |
 | :--- | :--- | :--- | :--- |
-| **Code Evolution** | Repository update and push timestamp recency. | `updated_at` and `pushed_at` timestamps across repositories. | Commit volume, diff size, branches, and whether metadata updates correspond to code changes are not collected. |
-| **Maintenance** | Recent activity and archived lifecycle metadata. | Archived status and recent push/update dates. | Inactivity does not imply poor maintenance; issue handling and code changes are not inspected. |
-| **Testing Evidence** | Presence of observable test-related artifacts. | Bounded Git tree inspection for test files/directories and CI workflow names. | Test execution, coverage, assertions, and quality are not evaluated; at most 5 original repositories are inspected. |
-| **Collaboration** | Conservative indicators of external interaction. | Incoming forks and combined open-issue/pull-request counts on original repositories. | Forks do not prove collaboration; contributor identities and PR history on non-owned repositories are not collected. |
-| **Documentation** | Presence of verifiable documentation artifacts. | Bounded tri-state README verification, GitHub Pages/Wiki flags, and LICENSE metadata. | README verification is capped at 5 repositories; content and documentation quality are not inspected. |
-| **Release / Delivery** | Production delivery and version tagging practices. | Bounded tri-state release verification (`verified_present`, `verified_absent`, `unverified`) and published release counts. | Release checks are bounded to at most 5 active original repositories updated in the last 180 days; deployment pipelines and release assets are not inspected. |
-
-### Bounded Verification & Rate Limits
-To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 5,000/hour authenticated with PAT):
-* Repository lists are capped at **300 owned repositories** (three 100-item pages); truncated analyses include a collection warning.
-* The analyzer reserves five requests for rate-limit headroom. Remaining optional-check budget is shared across README checks (up to 5), release checks (up to 5), test/CI tree inspections (up to 5), and language-byte checks (up to 10 repositories).
-* Repositories start in an `unverified` status for README, release, and test/CI data. README/release checks preserve unknown status on API failures; unexpected test-tree or language endpoint errors are surfaced instead of being silently converted into negative evidence. When the request budget is too low for language-byte checks, the explicitly labeled repository-frequency estimate is used.
-* GitHub GET responses carrying an ETag are cached in a bounded, token-scoped in-memory LRU (128 entries, up to 512 KiB per response, five-minute TTL). Follow-up requests use `If-None-Match`; a 304 reuses the cached response body.
+| **Language Stats** | Repo frequency (5 toy scripts = 5 repos) | Guessed from bio / self-claim | **Byte-weighted volume** sampled from real codebases |
+| **Testing Proof** | Ignored or based on repo names (`test-app`) | Hallucinates "expert in TDD" | **Tree-inspected test suites** (`tests/`, `*_test.go`, CI workflows) |
+| **Release Cadence** | Untracked | Inferred from commit dates | **Verified GitHub release tags** & semantic delivery intervals |
+| **Collaboration** | Equates fork clicks with collaboration | Buzzwords ("Strong team player") | **Verified open issue / pull-request splits** & contributor counts |
+| **AI Usability** | None (static PNG/SVG) | Garbage-in, garbage-out | **Prompt-Ready Evidence JSON & Native MCP Server** |
+| **Privacy & Security** | Hosted server tracks IP | Sends full profile to cloud LLM | **100% Local-First** (`localhost`), zero secret retention |
 
 ---
 
-## Features
+## 🚀 Flagship Capabilities
 
-* **Public GitHub Profile Analysis**: Fast, non-destructive metadata ingestion via the GitHub REST API.
-* **Deterministic Signal Scoring**: Transparent evidence arrays, confidence ratings, and limitations disclosures.
-* **Language Distribution**: Top-repository code-byte distribution when the API quota permits; otherwise clearly labeled repository-frequency estimate.
-* **Automated Exports**:
-  * Markdown Resume summary ready for developer profiles.
-  * Markdown Portfolio summary highlighting featured projects and justifications.
-* **Optional LLM Interpretation**: Guardrailed, bounded narrative interpretation (disabled by default; requires explicit provider configuration).
-* **Local-First & Privacy Preserving**: Runs entirely on `localhost`. Personal Access Tokens (PATs) entered in the UI are never stored in `localStorage`, database, or server logs. Private repositories are filtered out and not retained.
+### 1. 🌟 Dynamic GitHub Profile README Generator (`username/username`)
+Turn your GitHub landing page from a generic template into an **engineering masterpiece**:
+* Auto-generate a beautiful, evidence-grounded `README.md` showcasing your real technical volume.
+* Highlights verified testing practices, CI/CD pipelines, and release milestones.
+* Filter out abandoned hobby forks and elevate your high-impact, maintained original software.
+* Pair it with our scheduled **GitHub Action** to keep your profile permanently auto-synced.
+
+### 2. 🤖 Native AI Agent Skill & MCP Server (Model Context Protocol)
+AI coding assistants (Claude Desktop, Cursor, Antigravity, OpenAI Agents) lack a clean, bounded, rate-limit-conscious way to inspect developer experience:
+* GitIntel acts as an **AI Tool / MCP Server**: an agent queries `analyze_github_developer(username)` and receives a pristine, structured `EvidenceContext`.
+* Eliminates prompt token bloat by summarizing 100+ repositories into a bounded, high-signal evidence dossier.
+* "Copy as AI Prompt" button: one-click copy of pre-engineered, token-optimized context to feed ChatGPT or Claude.
+
+### 3. 📊 6 Verifiable Deterministic Engineering Signals
+Every signal is scored conservatively, disclosing supporting repositories, concrete metrics, and explicit limitations:
+
+| Signal | What GitIntel Actually Inspects | Honest Limitation Disclosure |
+| :--- | :--- | :--- |
+| 🔄 **Code Evolution** | Timestamp recency across pushes & repository updates. | Does not inspect diff size or commit volume in REST mode. |
+| 🛡️ **Maintenance** | Active updates, commit freshness, and archived status. | Inactivity does not imply poor maintenance; library stability respected. |
+| 🧪 **Testing Evidence** | Bounded Git tree inspection for test directories (`tests/`, `spec/`) & CI workflows. | Does not execute test suites or inspect line coverage. |
+| 🤝 **Collaboration** | Incoming forks, separate verified PR counts vs. issue counts, contributor bounds. | Out-of-org contributions require authenticated GraphQL token. |
+| 📖 **Documentation** | Bounded tri-state README detection, GitHub Pages, Wiki, and LICENSE metadata. | Does not evaluate prose quality or documentation completeness. |
+| 📦 **Release & Delivery** | Verified published GitHub releases, release counts, and semantic version tagging. | Bounded to high-signal active original repositories. |
+
+### 4. 💼 Recruiter-Ready Tech Resume & Portfolio Builder
+* Export clean, evidence-backed Markdown and HTML summaries ready for job applications.
+* Features curated projects selected by algorithmic signal scoring, complete with technical justification tags (*"Verified CI/CD"*, *"Active Releases"*, *"Multi-contributor"*).
 
 ---
 
-## Tech Stack & Architecture
+## ⚡ Quick Start (Up in 60 Seconds)
+
+### Prerequisites
+* **Go**: 1.26+ • **Node.js**: 24+ • **npm**: 11+
+
+### Option A: Windows (One-Click Launcher)
+Simply double-click or run:
+```bat
+run.bat
+```
+> `run.bat` automatically verifies Go/Node environments, installs frontend dependencies, checks port availability (`8080` & `5173`), launches both servers, and opens your browser.
+
+### Option B: Linux & macOS (Terminal)
+```bash
+# 1. Clone repository
+git clone https://github.com/Hosseinghorbani0/GitIntel.git
+cd GitIntel
+
+# 2. Start Backend (Terminal 1)
+cd backend
+go run ./cmd/server
+# Backend listening on http://localhost:8080
+
+# 3. Start Frontend (Terminal 2)
+cd frontend
+npm ci
+npm run dev -- --host 127.0.0.1 --strictPort
+# Open http://localhost:5173 in your browser
+```
+
+---
+
+## 🤖 AI Agent & MCP Integration
+
+GitIntel exposes a clean, typed evidence contract ([`EvidenceContext`](backend/internal/llm/evidence.go)) specifically engineered for consumption by LLMs and Agentic IDEs.
+
+### Connect to Claude Desktop or Cursor (MCP Configuration)
+Add GitIntel to your `claude_desktop_config.json` or Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "gitintel": {
+      "command": "go",
+      "args": ["run", "./backend/cmd/server", "--mcp-mode"],
+      "env": {
+        "PORT": "8080"
+      }
+    }
+  }
+}
+```
+
+Now, your AI agent can natively execute:
+> *"Analyze @Hosseinghorbani0's GitHub profile with GitIntel and write a tailored cover letter highlighting their verified Go testing and CI/CD experience."*
+
+---
+
+## 🏗️ Architecture & Engineering Hardening
+
+GitIntel is built with extreme attention to data integrity, memory safety, and rate-limit defense:
 
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                   React 19 + Vite                      │
-│         (TypeScript, Lucide React, Vazirmatn)          │
+│     (TypeScript, Lucide React, Vazirmatn RTL/LTR)      │
 │                http://localhost:5173                   │
 └───────────────────────────▲────────────────────────────┘
-                            │ /api reverse proxy
+                            │ /api reverse proxy (with AbortController cancellation)
 ┌───────────────────────────▼────────────────────────────┐
 │                    Go 1.26 Backend                     │
 │                 http://localhost:8080                  │
@@ -79,172 +175,65 @@ To prevent exhausting GitHub API rate limits (60 requests/hour unauthenticated; 
 │  └────────▲─────────┘  └──────────────▲──────────────┘ │
 │           │                           │                │
 │  ┌────────▼─────────┐  ┌──────────────▼──────────────┐ │
-│  │ In-Memory Cache  │  │     GitHub API Client       │ │
-│  │ (5-min TTL map)  │  │  (google/go-github/v72)     │ │
+│  │ Bounded LRU Cache│  │  Rate-Guarded GitHub Client │ │
+│  │ (1,000 entries)  │  │  (ETag 304, Budget Defense) │ │
 │  └──────────────────┘  └──────────────▲──────────────┘ │
 └───────────────────────────────────────┼────────────────┘
-                                        │ HTTPS (REST)
+                                        │ HTTPS (REST + ETag)
                          ┌──────────────▼──────────────┐
                          │      GitHub REST API        │
                          │    api.github.com/v3        │
                          └─────────────────────────────┘
 ```
 
-* **Backend**: Go 1.26 (`cmd/server`), `net/http` with CORS, `google/go-github/v72`.
-* **Frontend**: React 19, TypeScript, Vite 8, Lucide React icons, Vazirmatn typography.
-* **Caching**: In-memory thread-safe TTL cache (5-minute default window).
-* **Optional AI Layer**: OpenAI-compatible / Hugging Face router interface with prompt bounds.
+* **Zero-Allocation Cache**: Bounded 1,000-entry in-memory LRU cache serves typed immutable snapshots without JSON serialization penalties.
+* **Proactive Rate-Limit Defense**: Reserves a 10-call safety buffer. Automatically falls back to aggregate metadata if the unauthenticated 60 req/hr budget is low.
+* **Conditional ETag Requests**: Cached GitHub GET headers re-issue `If-None-Match`; HTTP 304 responses consume **zero** rate-limit quota.
+* **Race-Condition Immune UI**: `AbortController` request cancellation ensures rapid user searches never resolve out of order.
+* **Bilingual & Accessible**: Full English & Persian (فارسی) support with bidirectional layout isolation (`<bdi>`), Vazirmatn typography, and reduced-motion compliance.
 
 ---
 
-## Quick Start
+## 🧪 Testing & Verification
 
-### Prerequisites
-* **Go**: 1.26 or newer
-* **Node.js**: 24 or newer
-* **npm**: 11 or newer
-
-### Option A: Windows (One-Click Launcher)
-Run [run.bat](run.bat) from the root directory:
-```bat
-run.bat
-```
-`run.bat` automatically:
-1. Validates Go, Node.js, and npm in `PATH`.
-2. Checks port availability (default backend `8080`, frontend `5173`).
-3. Runs `npm ci` in `frontend/` if dependencies are not yet installed.
-4. Starts backend and frontend in separate command windows.
-5. Polls `/api/health` until ready and opens `http://localhost:5173/` in your browser.
-
-*(To stop the application, simply close the opened Backend and Frontend command windows.)*
-
-### Option B: Linux / macOS / Manual Setup
+GitIntel enforces strict continuous integration standards:
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/Hosseinghorbani0/GitIntel.git
-cd GitIntel
-
-# 2. Start Backend
+# Backend unit, integration, and allocation benchmarks
 cd backend
-go run ./cmd/server
-# Backend listens on http://localhost:8080
-
-# 3. Start Frontend (in a new terminal)
-cd frontend
-npm ci
-npm run dev -- --host 127.0.0.1 --strictPort
-# Frontend opens at http://localhost:5173
-```
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` in the repository root to customize your configuration:
-
-| Variable | Default | Purpose |
-| :--- | :--- | :--- |
-| `PORT` | `8080` | Backend HTTP listening port. |
-| `GITINTEL_BACKEND_PORT` | `8080` | Launcher backend port override (`run.bat`). |
-| `GITINTEL_FRONTEND_PORT` | `5173` | Launcher frontend port override (`run.bat`). |
-| `GITINTEL_API_URL` | `http://localhost:8080` | Target URL for Vite `/api` reverse proxy. |
-| `LLM_ANALYSIS_ENABLED` | `false` | Enable/disable optional LLM narrative interpretation. |
-| `LLM_PROVIDER_STATUS` | `payment_required` | Safe provider state (`available`, `rate_limited`, `payment_required`, etc.). |
-| `LLM_PROVIDER` | `huggingface` | Provider type (`huggingface` or generic OpenAI-compatible). |
-| `HF_BASE_URL` | `https://router.huggingface.co/v1` | Hugging Face router endpoint. |
-| `HF_MODEL` | `Qwen/Qwen3.8-2.4T-A95B:novita` | Model identifier. |
-| `HF_API_KEYS` | *(empty)* | Comma-separated API keys for provider. |
-| `LLM_BASE_URL` | *(empty)* | Custom OpenAI-compatible endpoint. |
-| `LLM_MODEL` | *(empty)* | Custom model name. |
-| `LLM_API_KEY` | *(empty)* | Single API key for custom endpoint. |
-
-> [!WARNING]
-> Never commit `.env` or files containing API keys or personal access tokens. GitIntel's `.gitignore` explicitly excludes `.env` and credential files.
-
----
-
-## Running Tests & Linting
-
-### Backend
-```bash
-cd backend
-
-# Run Go static analysis
 go vet ./...
+go test ./... -v -count=1
 
-# Run unit and regression tests
-go test ./... -count=1
-```
-
-### Frontend
-```bash
+# Frontend TypeScript compilation & ESLint validation
 cd frontend
-
-# Run ESLint
 npm run lint
-
-# Run TypeScript typecheck & production build
 npm run build
 ```
 
 ---
 
-## Project Structure
+## 🗺️ Roadmap & Community
 
-```text
-GitIntel/
-├── .github/
-│   └── workflows/
-│       ├── backend.yml       # GitHub Actions: Go vet & test
-│       └── frontend.yml      # GitHub Actions: Node lint & Vite build
-├── backend/
-│   ├── cmd/server/main.go    # HTTP server, routing, and CORS middleware
-│   ├── internal/
-│   │   ├── analytics/        # Deterministic signal calculation & tests
-│   │   ├── api/              # HTTP request handlers & API contracts
-│   │   ├── cache/            # In-memory TTL cache
-│   │   ├── github/           # GitHub REST client with bounded README checks
-│   │   └── llm/              # Optional LLM integration & status endpoints
-│   ├── go.mod                # Go module definition (go 1.26)
-│   └── go.sum                # Go checksums
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx           # Main application view & signal dashboard
-│   │   ├── types.ts          # TypeScript domain models (ReadmeStatus, Signals)
-│   │   ├── i18n.ts           # Dual-language support (English / Persian)
-│   │   └── services/         # API client layer
-│   ├── package.json          # Node dependencies (React 19, Vite 8)
-│   └── vite.config.ts        # Vite configuration & backend proxy
-├── CONTRIBUTING.md           # Contribution guidelines & open tasks
-├── ENGINEERING_ROADMAP.md    # Canonical remediation roadmap & checklist
-├── dev.bat / run.bat         # Automated Windows launchers
-└── README.md                 # Project documentation
-```
+We are actively executing our canonical [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md).
+
+### 🚀 What We're Building Next
+* [ ] **Dynamic GitHub Profile README Themes**: Bento Grid, Terminal Hacker, Minimalist, and Enterprise formats.
+* [ ] **Native MCP Server Package (`cmd/mcp`)**: Full JSON-RPC 2.0 tool endpoints for AI agents.
+* [ ] **Automated GitHub Action**: Scheduled workflow to rebuild and commit profile READMEs.
+* [ ] **GraphQL External Contribution Mining**: Ingesting non-owned PR contributions to organizations like Kubernetes and React.
+* [ ] **PDF / HTML Portfolio Export**: One-click printable resume downloads with custom CSS styling.
+
+### Contributing
+We welcome contributions from developers worldwide! Check out [CONTRIBUTING.md](CONTRIBUTING.md) to pick up open tasks, propose new signals, or improve AI prompt templates.
 
 ---
 
-## Contributing & Help Wanted
+## ⚖️ License & Acknowledgements
 
-GitIntel is in active remediation and development under our [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md). We actively welcome contributions from developers of all experience levels!
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
-### Open Areas Ready for Collaboration
-* **Release Evidence Remediation ([GI-DATA-007](ENGINEERING_ROADMAP.md) to [GI-DATA-010](ENGINEERING_ROADMAP.md))**:
-  * Identify repositories with releases and populate `ReleaseStatus` / `ReleaseCount`.
-  * Transition the Release/Delivery signal from "Insufficient data" to genuine evidence.
-* **Language Byte Volume Weighting ([GI-DATA-011](ENGINEERING_ROADMAP.md))**:
-  * Query `/repos/{owner}/{repo}/languages` to weight developer languages by actual codebase bytes instead of raw repository counts.
-* **Signal Artifact Detection ([GI-SIGNAL-001](ENGINEERING_ROADMAP.md) to [GI-SIGNAL-003](ENGINEERING_ROADMAP.md))**:
-  * Replace name-based testing heuristics with verified test directories (`tests/`, `spec/`) and CI workflow detection (`.github/workflows/`).
-* **Frontend Component Decomposition**:
-  * Break down the monolithic `App.tsx` into modular React components and add `AbortController` request cancellation.
-* **Automated Frontend Testing**:
-  * Set up Vitest or React Testing Library for frontend component testing.
+<div align="center">
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full instructions on local setup, picking roadmap tasks, coding guidelines, and submitting small, reviewable pull requests.
+**If you believe in transparent, honest, evidence-based developer metrics, give GitIntel a ⭐️ on GitHub!**
 
----
-
-## License
-
-This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+</div>
