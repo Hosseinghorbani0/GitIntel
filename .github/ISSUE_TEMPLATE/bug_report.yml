@@ -1,0 +1,65 @@
+name: 🐛 Bug Report
+description: Report a reproducible problem or unexpected behavior in GitIntel.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please check existing issues before submitting to avoid duplicates.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: When analyzing profile X, the documentation signal incorrectly reported...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Start backend: `go run ./cmd/server`
+        2. Start frontend: `npm run dev`
+        3. Enter username: `torvalds`
+        4. Click 'Analyze Profile'
+        5. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - "Backend HTTP Server (/api/...)"
+        - "Native MCP Server (cmd/mcp)"
+        - "Analytics & Signals Engine"
+        - "Frontend Dashboard / UI"
+        - "Profile README Generator"
+        - "Documentation / Translations"
+        - "Other"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Go version, Node.js version, and browser.
+      placeholder: Windows 11 / Go 1.26 / Node 24 / Chrome 126
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs & Output
+      description: Please copy and paste any relevant terminal output or browser console errors.
+      render: shell

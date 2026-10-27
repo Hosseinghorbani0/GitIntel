@@ -21,29 +21,28 @@ We actively invite developers, researchers, and open-source contributors to coll
 
 Here are the highest-impact open areas where we welcome Pull Requests:
 
-### A. Dynamic GitHub Profile README Generator (`GI-AI-001`)
-* **Goal**: Build preset markdown & SVG templates for users' `username/username` profile READMEs.
-* **Tasks**:
-  * Implement theme generators in `backend/internal/analytics/` (Minimalist, Bento Grid, Hacker Terminal).
-  * Expose an endpoint `/api/profile-readme` and integrate a live preview tab in `PortfolioView.tsx`.
+### A. Automated Frontend Tests with Vitest (`GI-TEST-003`)
+* **Goal**: Set up Vitest and React Testing Library in `frontend/` to test component rendering, language switching (English/Persian RTL), and signal visualizers.
+* **Impact**: Elevates frontend continuous integration to match the backend's 100% passing test standard.
 
-### B. Native Model Context Protocol (MCP) Server (`GI-AI-002`)
-* **Goal**: Enable AI coding assistants (Claude Desktop, Cursor, Antigravity) to query GitIntel natively via JSON-RPC.
-* **Tasks**:
-  * Build an MCP stdio/SSE server in `backend/cmd/mcp/` exposing `gitintel_analyze_profile` and `gitintel_get_signals`.
-  * Validate with Claude Desktop and Cursor MCP configs.
-
-### C. Automated GitHub Action Workflow (`GI-AI-003`)
+### B. Automated GitHub Action Workflow (`GI-AI-003`)
 * **Goal**: A composite GitHub Action (`gitintel-profile-action`) that runs on a weekly cron in a developer's profile repository to automatically regenerate and commit their `README.md`.
+* **Impact**: Allows developers to keep their GitHub Profile README automatically synchronized without manual export.
 
-### D. "Copy as AI Prompt" Exporter & PDF Resume (`GI-AI-004` & `GI-AI-005`)
-* **Goal**: Give developers one-click prompt templates to feed ChatGPT/Claude, plus print-ready `@media print` CSS for 1-page PDF resumes.
+### C. Multi-Repository External Contribution Mining (`GI-PROD-001`)
+* **Goal**: Query GitHub's GraphQL API (`is:pr author:<username>`) to detect contributions made to external open-source organizations (Kubernetes, React, Linux) beyond self-owned repositories.
+* **Impact**: Unlocks verifiable evidence for engineers whose best work is in external collaborative open-source repositories.
 
-### E. Multi-Repository External Contribution Mining (`GI-PROD-001`)
-* **Goal**: Query GitHub's GraphQL API (`is:pr author:<username>`) to detect contributions made to external open-source organizations (Kubernetes, React, Linux) beyond owned repositories.
+### D. Dynamic Profile README Themes & Formats (`GI-AI-001`)
+* **Status**: Core generation is shipped in `/api/profile-readme` and `PortfolioView.tsx`.
+* **Help Wanted**: Additional themes beyond the current format:
+  * Minimalist / Plain Text
+  * Bento Grid SVG Cards
+  * Hacker Terminal / ANSI Style
 
-### F. Automated Frontend Tests with Vitest (`GI-TEST-003`)
-* **Goal**: Set up Vitest and React Testing Library in `frontend/` to test component rendering, language switching, and filter predicates.
+### E. One-Click PDF Resume Export (`GI-AI-005`)
+* **Status**: Markdown resume export and "Copy as AI Prompt" are shipped.
+* **Help Wanted**: Clean print CSS (`@media print`) and export button for formatted single-page PDF resumes directly from the browser.
 
 ---
 
@@ -102,12 +101,12 @@ npm run build
 ## 5. Contribution Workflow
 
 1. **Pick or Propose a Task**:
-   * Review [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md) to pick an open task (e.g. `GI-DATA-007`).
-   * Or open a GitHub Issue to discuss a new bug fix or feature idea.
+   * Review [ENGINEERING_ROADMAP.md](ENGINEERING_ROADMAP.md) to pick an open task (e.g. `GI-TEST-003`).
+   * Or open a [GitHub Issue](https://github.com/Hosseinghorbani0/GitIntel/issues/new/choose) using our structured bug or feature templates.
 2. **Branch from `main`**:
    * Create a descriptive branch:
      ```bash
-     git checkout -b feat/release-evidence-collection
+     git checkout -b feat/frontend-vitest-setup
      ```
 3. **Keep Commits Atomic & Focused**:
    * Follow [Conventional Commits](https://www.conventionalcommits.org/):
@@ -121,4 +120,5 @@ npm run build
    * When completing a task from `ENGINEERING_ROADMAP.md`, update its checkbox and paste the validation evidence.
 5. **Open a Pull Request**:
    * Push your branch to your fork and submit a PR to `main`.
-   * Include a clear description of what changed, why, and the command output confirming tests pass.
+   * Complete the checklist in [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md).
+   * Include command outputs confirming tests pass (`go test ./...` and `npm run build`).

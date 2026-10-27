@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/Hosseinghorbani0/GitIntel/security/advisories/new
+    about: Please report security vulnerabilities privately via GitHub Security Advisories or to the maintainer.
+  - name: 💬 Questions & Community Ideas
+    url: https://github.com/Hosseinghorbani0/GitIntel/discussions
+    about: Ask questions, share ideas, and connect with other contributors in Discussions.

@@ -1,0 +1,48 @@
+name: 💡 Feature Request or Signal Proposal
+description: Suggest an idea, new deterministic signal, theme template, or exporter for GitIntel.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome feature ideas and new observable engineering signals!
+        Remember GitIntel's core rule: **Observable Evidence Only** — we do not add subjective scoring or unverifiable claims.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement or Use Case
+      description: Is your feature request related to a problem or a gap in current functionality?
+      placeholder: Recruiters evaluating Go developers cannot easily see if repos use fuzzing tests...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution / Signal Design
+      description: Describe the solution or signal algorithm you would like to see.
+      placeholder: |
+        Inspect the GitHub tree for `*_test.go` files containing `func Fuzz*(f *testing.F)`.
+        Weight this into the Testing Evidence signal...
+    validations:
+      required: true
+  - type: dropdown
+    id: roadmap-category
+    attributes:
+      label: Roadmap Category
+      options:
+        - "Deterministic Signals (GI-SIGNAL)"
+        - "Data Normalization & Integrity (GI-DATA)"
+        - "Profile README & Exporters (GI-AI)"
+        - "MCP Server Extensibility (cmd/mcp)"
+        - "Frontend UI & Visualizations"
+        - "Testing & CI Automation"
+        - "Other"
+    validations:
+      required: true
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: Contribution
+      options:
+        - label: I am interested in submitting a Pull Request to implement this feature.
